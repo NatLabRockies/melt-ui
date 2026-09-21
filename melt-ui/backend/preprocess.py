@@ -1,10 +1,7 @@
 import numpy as np
-import torch
-from fastapi import APIRouter, FastAPI, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from ptmelt.utils.preprocessing import get_normalizers
-from sklearn.model_selection import train_test_split
-from torch.utils.data import DataLoader, TensorDataset
 
 router = APIRouter()
 

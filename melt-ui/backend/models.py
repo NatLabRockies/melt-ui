@@ -5,9 +5,10 @@ import json
 import os
 import re
 import uuid
-from datetime import datetime, timezone
+from collections.abc import Mapping
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional, Tuple
+from typing import Any
 
 import torch
 from fastapi import APIRouter, Request
@@ -40,7 +41,7 @@ async def _ensure_model_store(app) -> Any:
         return app.state.model_store
 
 
-async def _model_store_get(model_store: Any, model_id: str) -> Optional[dict]:
+async def _model_store_get(model_store: Any, model_id: str) -> dict | None:
     if model_store is None:
         return None
     getter = getattr(model_store, "get", None)
@@ -67,9 +68,9 @@ async def _model_store_set(model_store: Any, model_id: str, entry: dict) -> None
 
 def _as_cpu_contiguous_state_dict(
     state: Mapping[str, torch.Tensor],
-) -> Dict[str, torch.Tensor]:
+) -> dict[str, torch.Tensor]:
     """Ensure tensors are CPU + contiguous, as required by safetensors."""
-    out: Dict[str, torch.Tensor] = {}
+    out: dict[str, torch.Tensor] = {}
     for k, v in state.items():
         if not isinstance(v, torch.Tensor):
             continue
@@ -84,10 +85,10 @@ def _as_cpu_contiguous_state_dict(
 
 def _infer_in_out_from_state_dict(
     state: Mapping[str, torch.Tensor],
-) -> Tuple[Optional[int], Optional[int]]:
+) -> tuple[int | None, int | None]:
     """Best-effort inference of input/output dims from common weight shapes."""
-    in_dim: Optional[int] = None
-    out_dim: Optional[int] = None
+    in_dim: int | None = None
+    out_dim: int | None = None
 
     # Pick first and last 2D weights
     weights_2d = [
@@ -152,7 +153,7 @@ def _coerce_meta_value(raw: Any) -> Any:
     return text
 
 
-def _as_float_list(value: Any) -> Optional[list[float]]:
+def _as_float_list(value: Any) -> list[float] | None:
     if value is None:
         return None
     if isinstance(value, (int, float)):
@@ -205,8 +206,8 @@ def _build_standard_scaler_dict(
     }
 
 
-def _parse_scaler_info_text(text: str) -> Dict[str, dict]:
-    parsed_raw: Dict[str, Dict[str, list[float]]] = {
+def _parse_scaler_info_text(text: str) -> dict[str, dict]:
+    parsed_raw: dict[str, dict[str, list[float]]] = {
         "x_normalizer": {},
         "y_normalizer": {},
     }
@@ -224,7 +225,7 @@ def _parse_scaler_info_text(text: str) -> Dict[str, dict]:
         if vals:
             parsed_raw[key][field] = vals
 
-    out: Dict[str, dict] = {}
+    out: dict[str, dict] = {}
     for key in ("x_normalizer", "y_normalizer"):
         mean_vals = parsed_raw[key].get("mean")
         scale_vals = parsed_raw[key].get("scale")
@@ -233,7 +234,7 @@ def _parse_scaler_info_text(text: str) -> Dict[str, dict]:
     return out
 
 
-def _parse_metadata_scalars(meta_map: Dict[str, str], target: Dict[str, Any]) -> None:
+def _parse_metadata_scalars(meta_map: dict[str, str], target: dict[str, Any]) -> None:
     keys = [
         "architecture",
         "num_features",
@@ -294,8 +295,8 @@ def _parse_metadata_scalars(meta_map: Dict[str, str], target: Dict[str, Any]) ->
 
 def _infer_rnn_init_from_state_dict(
     state: Mapping[str, torch.Tensor],
-) -> Dict[str, Any]:
-    out: Dict[str, Any] = {}
+) -> dict[str, Any]:
+    out: dict[str, Any] = {}
     recurrent_keys = [
         k for k in state.keys() if "weight_ih_l" in str(k) or "weight_hh_l" in str(k)
     ]
@@ -408,9 +409,9 @@ def _extract_model_init(
     model_obj: Any,
     model_meta: Mapping[str, Any],
     state_dict: Mapping[str, torch.Tensor],
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Create a compact init config that load can use."""
-    init_cfg: Dict[str, Any] = {}
+    init_cfg: dict[str, Any] = {}
 
     # Start with model_meta (trainer already populates most hparams)
     for k in [
@@ -618,7 +619,7 @@ def _avoid_overwrite(path: Path) -> Path:
     if not path.exists():
         return path
     stem = path.stem
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     return path.with_name(f"{stem}_{ts}{path.suffix}")
 
 
@@ -694,10 +695,10 @@ async def save_model(request: Request):
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Build metadata (string->string)
-    saved_at = datetime.now(timezone.utc).isoformat()
+    saved_at = datetime.now(UTC).isoformat()
     init_cfg = _extract_model_init(model, model_metadata, model.state_dict())
 
-    meta_map: Dict[str, str] = {
+    meta_map: dict[str, str] = {
         "format": "ptmelt.safetensors.v1",
         "saved_at": saved_at,
         "model_id": str(model_id),
@@ -869,7 +870,6 @@ async def load_model(request: Request):
 
     # Accept either explicit path OR (save_dir + filename)
     path_in = body.get("path") or body.get("file_path")
-    save_dir = body.get("save_dir", "saved_models")
     # filename = body.get("filename")
 
     print(f"Path in: {path_in}")
@@ -900,12 +900,12 @@ async def load_model(request: Request):
     try:
         with safe_open(str(path), framework="pt", device="cpu") as f:  # type: ignore[misc]
             md = {}
-            if hasattr(f, "metadata") and callable(getattr(f, "metadata")):
+            if hasattr(f, "metadata") and callable(f.metadata):
                 try:
                     md = f.metadata() or {}
                 except Exception:
                     md = {}
-            meta_map: Dict[str, str] = {str(k): str(v) for k, v in dict(md).items()}
+            meta_map: dict[str, str] = {str(k): str(v) for k, v in dict(md).items()}
     except Exception as e:
         return JSONResponse(
             status_code=400,
@@ -1133,7 +1133,7 @@ async def browse_file(request: Request):
         if not selected:
             return JSONResponse(content={"path": None, "cancelled": True})
         return JSONResponse(content={"path": selected, "cancelled": False})
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return JSONResponse(
             status_code=408, content={"error": "File dialog timed out."}
         )

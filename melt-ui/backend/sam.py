@@ -322,7 +322,6 @@ async def sam_health():
         diagnostics["errors"].append(f"transformers: {e}")
 
     try:
-        import PIL
 
         diagnostics["pillow_available"] = True
     except Exception as e:
@@ -405,7 +404,7 @@ async def sam_load_model(request: Request):
         print(f"[SAM] Model loaded. Moving to device={device}...")
         model.to(device)
         model.eval()
-        print(f"[SAM] Model on device and in eval mode.")
+        print("[SAM] Model on device and in eval mode.")
     except Exception as exc:
         print(f"[SAM] Load error: {exc}")
         raise HTTPException(
@@ -840,7 +839,6 @@ async def grounded_dino_detect(request: Request):
 
     pil_img = _decode_data_uri_image(str(image_data))
     width, height = pil_img.size
-    image_np = np.array(pil_img)
 
     try:
         import supervision as sv

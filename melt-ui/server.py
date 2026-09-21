@@ -2,8 +2,13 @@ import asyncio
 import logging
 import os
 import sys
-import time
 from collections import deque
+
+from fastapi import APIRouter, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.data import router as data_router
 from backend.evaluation import router as evaluation_router
@@ -17,11 +22,6 @@ from backend.trainers import router as trainers_router
 from backend.vae_trainers import router as vae_trainers_router
 from backend.visualization import router as visualization_router
 from backend.workflows import router as workflows_router
-from fastapi import APIRouter, FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
-from starlette.middleware.base import BaseHTTPMiddleware
 
 logs_router = APIRouter()
 

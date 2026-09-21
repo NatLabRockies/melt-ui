@@ -2,9 +2,10 @@ import asyncio
 import json
 import traceback
 import uuid
-from datetime import datetime, timezone
+from collections.abc import Mapping
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional
+from typing import Any
 
 import numpy as np
 from fastapi import APIRouter, Request
@@ -362,7 +363,7 @@ def _build_ray_value(spec: Any) -> Any:
 def _expand_independent_layers(
     spec: Mapping[str, Any],
     grouping: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Expand independent_layer_choice spec into separate Ray tune dimensions per layer/pair."""
     max_depth = int(spec.get("max_depth", 1))
     values = spec.get("values", [])
@@ -400,7 +401,7 @@ def _expand_independent_layers(
     return expanded
 
 
-def _expand_layer_structure(spec: Mapping[str, Any]) -> Dict[str, Any]:
+def _expand_layer_structure(spec: Mapping[str, Any]) -> dict[str, Any]:
     """Expand grouped architecture spec into Ray tune dimensions."""
     mode = str(spec.get("mode", "independent")).strip().lower()
     grouping = str(spec.get("grouping", "single")).strip().lower()
@@ -418,7 +419,7 @@ def _expand_layer_structure(spec: Mapping[str, Any]) -> Dict[str, Any]:
     if not any(v > 0 for v in widths):
         raise ValueError("at least one positive width is required")
 
-    expanded: Dict[str, Any] = {
+    expanded: dict[str, Any] = {
         "__architecture": True,
         "__arch_mode": mode,
         "__grouping": grouping,
@@ -448,7 +449,7 @@ def _expand_layer_structure(spec: Mapping[str, Any]) -> Dict[str, Any]:
     raise ValueError(f"Unsupported grouping: {grouping}")
 
 
-def _normalize_sampled_architecture(config: Mapping[str, Any]) -> Dict[str, Any]:
+def _normalize_sampled_architecture(config: Mapping[str, Any]) -> dict[str, Any]:
     """Normalize grouped sampled architecture keys back to node_list."""
     result = dict(config)
     if not result.get("__architecture"):
@@ -488,11 +489,11 @@ def _normalize_sampled_architecture(config: Mapping[str, Any]) -> Dict[str, Any]
 def _normalize_sampled_layers(
     config: Mapping[str, Any],
     grouping: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Normalize sampled layer/pair keys back to node_list."""
     result = dict(config)
     max_depth = result.pop("__max_depth", None)
-    result_grouping = result.pop("__grouping", None)
+    result.pop("__grouping", None)
 
     if max_depth is None:
         return result
@@ -525,7 +526,7 @@ def _normalize_sampled_layers(
     return result
 
 
-def _build_search_space(raw_search_space: Any) -> Dict[str, Any]:
+def _build_search_space(raw_search_space: Any) -> dict[str, Any]:
     if raw_search_space in (None, ""):
         return {}
     if isinstance(raw_search_space, str):
@@ -576,7 +577,7 @@ def _sample_log_with_optional_zero(
     high: float,
     include_zero: bool,
     zero_probability: float = 0.2,
-    q: Optional[float] = None,
+    q: float | None = None,
 ) -> float:
     # Keep logarithmic sampling strictly positive; zero is a separate discrete option.
     if include_zero and np.random.random() < float(zero_probability):
@@ -597,7 +598,7 @@ def _resolve_zero_options(spec: Mapping[str, Any]) -> tuple[bool, float]:
     return True, float(raw_probability)
 
 
-def _normalize_log_spec_fields(spec: Mapping[str, Any]) -> Dict[str, Any]:
+def _normalize_log_spec_fields(spec: Mapping[str, Any]) -> dict[str, Any]:
     normalized = dict(spec)
     spec_type = str(normalized.get("type", "value")).strip().lower()
     if spec_type not in {"loguniform", "qloguniform"}:
@@ -611,14 +612,14 @@ def _normalize_log_spec_fields(spec: Mapping[str, Any]) -> Dict[str, Any]:
 
 def _template_map_for_family(
     trainer_family: str, model_architecture: Any = None
-) -> Dict[str, Mapping[str, Any]]:
+) -> dict[str, Mapping[str, Any]]:
     payload = _template_payload(trainer_family, model_architecture)
     return {str(template["key"]): template for template in payload["templates"]}
 
 
 def _validate_single_spec(
     key: str, raw_spec: Any, template: Mapping[str, Any]
-) -> Optional[str]:
+) -> str | None:
     if not isinstance(raw_spec, Mapping):
         return None
 
@@ -738,7 +739,7 @@ def _validate_single_spec(
 
 def _template_payload(
     trainer_family: str, model_architecture: Any = None
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     family = _normalize_trainer_family(trainer_family)
     arch_type = _normalize_architecture(model_architecture, family)
     templates = list(_PARAMETER_TEMPLATES["common"]) + list(
@@ -816,7 +817,7 @@ def _template_payload(
 
 def _validate_search_space_spec(
     trainer_family: str, raw_search_space: Any, model_architecture: Any = None
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     family = _normalize_trainer_family(trainer_family)
     arch = _normalize_architecture(model_architecture, family)
     if isinstance(raw_search_space, str):
@@ -955,7 +956,7 @@ def _error_response(
     exc: Exception,
     *,
     status_code: int = 400,
-    step: Optional[str] = None,
+    step: str | None = None,
     debug: bool = False,
 ) -> JSONResponse:
     content = {
@@ -983,8 +984,8 @@ def _build_base_config(
     arch_type: str,
     num_features: int,
     num_outputs: int,
-) -> Dict[str, Any]:
-    base_config: Dict[str, Any] = {
+) -> dict[str, Any]:
+    base_config: dict[str, Any] = {
         "arch_type": arch_type,
         "num_features": int(num_features),
         "num_outputs": int(num_outputs),
@@ -1055,7 +1056,7 @@ def _build_base_config(
 
 def _trainer_hyperparameters_from_config(
     config: Mapping[str, Any], trainer_family: str
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     values = dict(config)
 
     # Handle grouped architecture tuning first.
@@ -1094,12 +1095,12 @@ _EMITTED_HYPERPARAMETER_EXCLUDED_KEYS = {
 
 
 def _strip_emitted_epoch_hyperparameters(
-    values: Optional[Mapping[str, Any]],
-) -> Dict[str, Any]:
+    values: Mapping[str, Any] | None,
+) -> dict[str, Any]:
     if not isinstance(values, Mapping):
         return {}
 
-    stripped: Dict[str, Any] = {}
+    stripped: dict[str, Any] = {}
     for key, value in values.items():
         normalized_key = HYPERPARAMETER_ALIASES.get(str(key), str(key))
         if normalized_key in _EMITTED_HYPERPARAMETER_EXCLUDED_KEYS:
@@ -1319,7 +1320,7 @@ def _make_hpo_dataloaders(
     return train_dl, val_dl, (x_train_scaled, y_train_scaled)
 
 
-def _default_search_space(trainer_family: str = "static") -> Dict[str, Any]:
+def _default_search_space(trainer_family: str = "static") -> dict[str, Any]:
     search_space = {
         "learning_rate": {"type": "choice", "values": [1e-3, 3e-4, 1e-4]},
         "dropout": {"type": "choice", "values": [0.0, 0.1, 0.2]},
@@ -1445,7 +1446,7 @@ async def melt_hyperparameter_tuner(request: Request):
             "trial_history": result.trial_history,
             "search_space": search_space_spec,
             "base_config": base_config,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
 
         if bool(body.get("autosave", True)):
@@ -1504,7 +1505,7 @@ async def save_hyperparameters(request: Request):
         tuning_id,
         {
             "tuning_id": tuning_id,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "payload": payload,
         },
     )

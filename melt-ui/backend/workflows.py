@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 import os
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
@@ -18,7 +18,7 @@ USER_WORKFLOWS_DIR = BASE_DIR / "frontend" / "workflows" / "user_workflow"
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _ensure_dir() -> None:
@@ -52,12 +52,12 @@ def _is_within_user_dir(path: Path) -> bool:
         return str(path).startswith(str(USER_WORKFLOWS_DIR.resolve()))
 
 
-def _read_json(path: Path) -> Dict[str, Any]:
+def _read_json(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
 
 
-def _write_json(path: Path, payload: Dict[str, Any]) -> None:
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
     with path.open("w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
@@ -66,7 +66,7 @@ def _write_json(path: Path, payload: Dict[str, Any]) -> None:
 async def list_user_workflows() -> JSONResponse:
     _ensure_dir()
 
-    items: List[Dict[str, Any]] = []
+    items: list[dict[str, Any]] = []
     for path in sorted(USER_WORKFLOWS_DIR.glob("*.json")):
         try:
             data = _read_json(path)
@@ -78,7 +78,7 @@ async def list_user_workflows() -> JSONResponse:
         created_at = data.get("createdAt")
         updated_at = (
             data.get("updatedAt")
-            or datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()
+            or datetime.fromtimestamp(stat.st_mtime, UTC).isoformat()
         )
 
         items.append(
@@ -160,7 +160,7 @@ async def save_user_workflow(request: Request) -> JSONResponse:
     if not _is_within_user_dir(path):
         return JSONResponse(status_code=400, content={"error": "Invalid workflow path"})
 
-    existing: Dict[str, Any] = {}
+    existing: dict[str, Any] = {}
     if path.exists():
         if not overwrite:
             return JSONResponse(
@@ -174,7 +174,7 @@ async def save_user_workflow(request: Request) -> JSONResponse:
     created_at = existing.get("createdAt") or _now_iso()
     updated_at = _now_iso()
 
-    record: Dict[str, Any] = {
+    record: dict[str, Any] = {
         "id": workflow_id,
         "source": "user",
         "name": name or existing.get("name") or workflow_id,

@@ -1,7 +1,6 @@
 import asyncio
 
 import numpy as np
-import torch
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
@@ -73,9 +72,9 @@ async def melt_temporal_supervised_trainer(request: Request):
     try:
         import importlib
 
-        RecurrentNeuralNetwork = getattr(
-            importlib.import_module("ptmelt.models"), "RecurrentNeuralNetwork"
-        )
+        RecurrentNeuralNetwork = importlib.import_module(
+            "ptmelt.models"
+        ).RecurrentNeuralNetwork
     except Exception as e:
         return JSONResponse(
             status_code=500,
@@ -498,9 +497,9 @@ async def melt_temporal_transformer_trainer(request: Request):
     try:
         import importlib
 
-        TemporalTransformerNetwork = getattr(
-            importlib.import_module("ptmelt.models"), "TemporalTransformerNetwork"
-        )
+        TemporalTransformerNetwork = importlib.import_module(
+            "ptmelt.models"
+        ).TemporalTransformerNetwork
     except Exception as e:
         return JSONResponse(
             status_code=500,

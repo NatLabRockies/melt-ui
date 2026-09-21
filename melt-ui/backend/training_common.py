@@ -1,7 +1,7 @@
 import json
 import threading
 import uuid
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import torch
@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from .utils import scaler_to_dict
 
-SCHEDULER_KWARGS: Dict[str, Any] = {
+SCHEDULER_KWARGS: dict[str, Any] = {
     "factor": 0.5,
     "patience": 50,
     "min_lr": 1e-6,
@@ -21,7 +21,7 @@ SCHEDULER_KWARGS: Dict[str, Any] = {
     "cooldown": 10,
 }
 
-HYPERPARAMETER_ALIASES: Dict[str, str] = {
+HYPERPARAMETER_ALIASES: dict[str, str] = {
     "act_fun": "activation_function",
     "arch_type": "model_architecture",
     "dropout": "dropout_rate",
@@ -91,7 +91,7 @@ HYPERPARAMETER_ALLOWLISTS = {
 }
 
 
-def _extract_hyperparameter_mapping(value: Any) -> Dict[str, Any]:
+def _extract_hyperparameter_mapping(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         return {}
 
@@ -114,7 +114,7 @@ def _extract_hyperparameter_mapping(value: Any) -> Dict[str, Any]:
     return dict(value)
 
 
-def _sampled_layers_to_node_list(overrides: Dict[str, Any]) -> None:
+def _sampled_layers_to_node_list(overrides: dict[str, Any]) -> None:
     if "node_list" in overrides:
         return
 
@@ -132,8 +132,8 @@ def _sampled_layers_to_node_list(overrides: Dict[str, Any]) -> None:
 
 
 def apply_hyperparameter_overrides(
-    body: Dict[str, Any], trainer_family: str
-) -> Dict[str, Any]:
+    body: dict[str, Any], trainer_family: str
+) -> dict[str, Any]:
     """Merge validated HPO overrides into a request body.
 
     The original body wins for data and execution-only fields; only allowlisted
@@ -149,7 +149,7 @@ def apply_hyperparameter_overrides(
     if not overrides:
         return body
 
-    normalized: Dict[str, Any] = {}
+    normalized: dict[str, Any] = {}
     _sampled_layers_to_node_list(overrides)
     for key, value in overrides.items():
         normalized_key = HYPERPARAMETER_ALIASES.get(str(key), str(key))
@@ -258,7 +258,7 @@ def split_train_val_test(
     val_size: float,
     test_size: float,
     random_state: int,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     if val_size <= 0.0 or val_size >= 1.0:
         raise ValueError("val_size must be in the range (0, 1).")
     if test_size <= 0.0 or test_size >= 1.0:
@@ -283,7 +283,7 @@ def split_train_val_test_temporal(
     y: np.ndarray,
     val_size: float,
     test_size: float,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Chronological split for temporal modeling.
 
@@ -434,8 +434,8 @@ def serialize_normalizer(normalizer):
 async def store_trained_model(
     request,
     model,
-    model_meta: Dict[str, Any],
-    history: Dict[str, Any],
+    model_meta: dict[str, Any],
+    history: dict[str, Any],
     x_normalizer=None,
     y_normalizer=None,
 ):
@@ -461,14 +461,14 @@ async def store_trained_model(
 
 def build_training_response(
     model_id: str,
-    model_meta: Dict[str, Any],
+    model_meta: dict[str, Any],
     x_data,
     y_data,
     x_data_scaled,
     y_data_scaled,
     x_normalizer,
     y_normalizer,
-    history: Dict[str, Any],
+    history: dict[str, Any],
 ):
     return {
         "model_id": model_id,

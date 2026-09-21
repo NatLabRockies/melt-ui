@@ -3,7 +3,6 @@ import inspect
 import json
 import math
 from io import BytesIO
-from typing import List, Optional, Sequence, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -100,9 +99,9 @@ def _decode_vae_latent(model, z_np: np.ndarray):
 def _decode_from_payload(
     model,
     z,
-    n_samples: Optional[int],
-    latent_scale: Optional[float],
-    random_state: Optional[int],
+    n_samples: int | None,
+    latent_scale: float | None,
+    random_state: int | None,
     max_decode_samples: int = 10000,
 ):
     if z is None:
@@ -142,9 +141,9 @@ def _decode_from_payload(
 
 class VAEEncodeLatentPayload(BaseModel):
     model: dict
-    x: Union[List[float], List[List[float]], List[List[List[float]]], str]
-    split: Optional[str] = "train"
-    include_encoder_stats: Optional[bool] = True
+    x: list[float] | list[list[float]] | list[list[list[float]]] | str
+    split: str | None = "train"
+    include_encoder_stats: bool | None = True
 
 
 @router.post("/vae_encode_latent")
@@ -182,9 +181,9 @@ async def vae_encode_latent(payload: VAEEncodeLatentPayload, request: Request):
 
 class VAEReconstructDataPayload(BaseModel):
     model: dict
-    x: Union[List[float], List[List[float]], List[List[List[float]]], str]
-    split: Optional[str] = "train"
-    error_metric: Optional[str] = "mse"
+    x: list[float] | list[list[float]] | list[list[list[float]]] | str
+    split: str | None = "train"
+    error_metric: str | None = "mse"
 
 
 @router.post("/vae_reconstruct_data")
@@ -233,10 +232,10 @@ async def vae_reconstruct_data(payload: VAEReconstructDataPayload, request: Requ
 
 class VAEAnomalyScoresPayload(BaseModel):
     model: dict
-    x: Union[List[float], List[List[float]], List[List[List[float]]], str]
-    split: Optional[str] = "train"
-    error_metric: Optional[str] = "mse"
-    threshold_quantile: Optional[float] = 0.99
+    x: list[float] | list[list[float]] | list[list[list[float]]] | str
+    split: str | None = "train"
+    error_metric: str | None = "mse"
+    threshold_quantile: float | None = 0.99
 
 
 @router.post("/vae_anomaly_scores")
@@ -296,11 +295,11 @@ async def vae_anomaly_scores(payload: VAEAnomalyScoresPayload, request: Request)
 
 class VAELatentClusterPayload(BaseModel):
     model: dict
-    x: Union[List[float], List[List[float]], List[List[List[float]]], str]
-    split: Optional[str] = "train"
-    n_clusters: Optional[int] = 5
-    random_state: Optional[int] = 42
-    n_init: Optional[int] = 10
+    x: list[float] | list[list[float]] | list[list[list[float]]] | str
+    split: str | None = "train"
+    n_clusters: int | None = 5
+    random_state: int | None = 42
+    n_init: int | None = 10
 
 
 @router.post("/vae_latent_cluster")
@@ -353,10 +352,10 @@ async def vae_latent_cluster(payload: VAELatentClusterPayload, request: Request)
 
 class VAEDecodeLatentPayload(BaseModel):
     model: dict
-    z: Optional[Union[List[float], List[List[float]], str]] = None
-    n_samples: Optional[int] = 100
-    latent_scale: Optional[float] = 1.0
-    random_state: Optional[int] = 42
+    z: list[float] | list[list[float]] | str | None = None
+    n_samples: int | None = 100
+    latent_scale: float | None = 1.0
+    random_state: int | None = 42
 
 
 @router.post("/vae_decode_latent")
@@ -390,23 +389,23 @@ async def vae_decode_latent(payload: VAEDecodeLatentPayload, request: Request):
 
 class PlotVAEDecodedPayload(BaseModel):
     model: dict
-    z: Optional[Union[List[float], List[List[float]], str]] = None
-    labels: Optional[Union[List[float], List[List[float]], List[int], str]] = None
-    n_samples: Optional[int] = 100
-    latent_scale: Optional[float] = 1.0
-    random_state: Optional[int] = 42
-    feature_x: Optional[int] = 0
-    feature_y: Optional[int] = 1
-    feature_z: Optional[int] = 2
-    mode: Optional[str] = "auto"
-    use_pca: Optional[bool] = True
-    pairplot: Optional[bool] = False
-    plot_3d: Optional[bool] = False
-    alpha: Optional[float] = 0.7
-    point_size: Optional[float] = 18.0
-    max_plot_samples: Optional[int] = 2000
-    figsize: Optional[Tuple[int, int]] = (8, 6)
-    image_format: Optional[str] = "pdf"
+    z: list[float] | list[list[float]] | str | None = None
+    labels: list[float] | list[list[float]] | list[int] | str | None = None
+    n_samples: int | None = 100
+    latent_scale: float | None = 1.0
+    random_state: int | None = 42
+    feature_x: int | None = 0
+    feature_y: int | None = 1
+    feature_z: int | None = 2
+    mode: str | None = "auto"
+    use_pca: bool | None = True
+    pairplot: bool | None = False
+    plot_3d: bool | None = False
+    alpha: float | None = 0.7
+    point_size: float | None = 18.0
+    max_plot_samples: int | None = 2000
+    figsize: tuple[int, int] | None = (8, 6)
+    image_format: str | None = "pdf"
 
 
 @router.post("/plot_vae_decoded")
@@ -588,9 +587,9 @@ async def plot_vae_decoded(payload: PlotVAEDecodedPayload, request: Request):
 
 class VAELatentInterpolatePayload(BaseModel):
     model: dict
-    z_start: Union[List[float], List[List[float]], str]
-    z_end: Union[List[float], List[List[float]], str]
-    num_steps: Optional[int] = 16
+    z_start: list[float] | list[list[float]] | str
+    z_end: list[float] | list[list[float]] | str
+    num_steps: int | None = 16
 
 
 @router.post("/vae_latent_interpolate")
@@ -705,15 +704,15 @@ def _validate_axis_pair(axis_x: int, axis_y: int, max_dims: int, name: str):
 
 
 class PlotVAEInitialClustersPayload(BaseModel):
-    x: Union[List[float], List[List[float]], List[List[List[float]]], str]
-    labels: Optional[Union[List[float], List[List[float]], List[int], str]] = None
-    split: Optional[str] = "train"
-    feature_x: Optional[int] = 0
-    feature_y: Optional[int] = 1
-    alpha: Optional[float] = 0.7
-    point_size: Optional[float] = 18.0
-    figsize: Optional[Tuple[int, int]] = (8, 6)
-    image_format: Optional[str] = "pdf"
+    x: list[float] | list[list[float]] | list[list[list[float]]] | str
+    labels: list[float] | list[list[float]] | list[int] | str | None = None
+    split: str | None = "train"
+    feature_x: int | None = 0
+    feature_y: int | None = 1
+    alpha: float | None = 0.7
+    point_size: float | None = 18.0
+    figsize: tuple[int, int] | None = (8, 6)
+    image_format: str | None = "pdf"
 
 
 @router.post("/plot_vae_initial_clusters")
@@ -762,15 +761,15 @@ async def plot_vae_initial_clusters(payload: PlotVAEInitialClustersPayload):
 
 class PlotVAELatentClustersPayload(BaseModel):
     model: dict
-    x: Union[List[float], List[List[float]], List[List[List[float]]], str]
-    labels: Optional[Union[List[float], List[List[float]], List[int], str]] = None
-    split: Optional[str] = "train"
-    latent_x: Optional[int] = 0
-    latent_y: Optional[int] = 1
-    alpha: Optional[float] = 0.7
-    point_size: Optional[float] = 18.0
-    figsize: Optional[Tuple[int, int]] = (8, 6)
-    image_format: Optional[str] = "pdf"
+    x: list[float] | list[list[float]] | list[list[list[float]]] | str
+    labels: list[float] | list[list[float]] | list[int] | str | None = None
+    split: str | None = "train"
+    latent_x: int | None = 0
+    latent_y: int | None = 1
+    alpha: float | None = 0.7
+    point_size: float | None = 18.0
+    figsize: tuple[int, int] | None = (8, 6)
+    image_format: str | None = "pdf"
 
 
 @router.post("/plot_vae_latent_clusters")
@@ -832,15 +831,15 @@ async def plot_vae_latent_clusters(
 
 class PlotVAEReconstructionPayload(BaseModel):
     model: dict
-    x: Union[List[float], List[List[float]], List[List[List[float]]], str]
-    labels: Optional[Union[List[float], List[List[float]], List[int], str]] = None
-    split: Optional[str] = "train"
-    feature_x: Optional[int] = 0
-    feature_y: Optional[int] = 1
-    alpha: Optional[float] = 0.7
-    point_size: Optional[float] = 18.0
-    figsize: Optional[Tuple[int, int]] = (10, 4)
-    image_format: Optional[str] = "pdf"
+    x: list[float] | list[list[float]] | list[list[list[float]]] | str
+    labels: list[float] | list[list[float]] | list[int] | str | None = None
+    split: str | None = "train"
+    feature_x: int | None = 0
+    feature_y: int | None = 1
+    alpha: float | None = 0.7
+    point_size: float | None = 18.0
+    figsize: tuple[int, int] | None = (10, 4)
+    image_format: str | None = "pdf"
 
 
 @router.post("/plot_vae_reconstruction")
@@ -916,7 +915,7 @@ def _to_numpy(array_like):
 def plot_xy(
     x,
     y,
-    figsize: Tuple[int, int] = (10, 6),
+    figsize: tuple[int, int] = (10, 6),
     n_cols: int = 3,
     return_fig: bool = True,
 ):
@@ -1022,11 +1021,11 @@ def plot_xy(
 
 
 class PlotXYPayload(BaseModel):
-    x: Union[List[float], List[List[float]]]
-    y: Union[List[float], List[List[float]]]
-    figsize: Optional[Tuple[int, int]] = (10, 6)
+    x: list[float] | list[list[float]]
+    y: list[float] | list[list[float]]
+    figsize: tuple[int, int] | None = (10, 6)
     n_cols: int = 3
-    image_format: Optional[str] = "pdf"
+    image_format: str | None = "pdf"
 
 
 async def plot_xy_node(payload: PlotXYPayload) -> dict:
@@ -1094,9 +1093,9 @@ async def plot_xy_endpoint(payload: PlotXYPayload):
 
 class PlotHistoryPayload(BaseModel):
     history: dict
-    plot_log: Optional[bool] = True
-    figsize: Optional[Tuple[int, int]] = (10, 6)
-    image_format: Optional[str] = "pdf"
+    plot_log: bool | None = True
+    figsize: tuple[int, int] | None = (10, 6)
+    image_format: str | None = "pdf"
 
 
 async def plot_history_node(payload: PlotHistoryPayload) -> dict:

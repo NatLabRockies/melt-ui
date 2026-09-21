@@ -3,9 +3,8 @@ import os
 import signal
 import sys
 
-from flask import send_from_directory
-
 import meltui.backend  # noqa: F401
+from flask import send_from_directory
 from meltui.app import app
 
 

@@ -27,9 +27,9 @@ async def melt_vae_trainer(request: Request):
     try:
         import importlib
 
-        VariationalAutoencoder = getattr(
-            importlib.import_module("ptmelt.models"), "VariationalAutoencoder"
-        )
+        VariationalAutoencoder = importlib.import_module(
+            "ptmelt.models"
+        ).VariationalAutoencoder
     except Exception as e:
         return JSONResponse(
             status_code=500,

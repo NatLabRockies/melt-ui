@@ -1,13 +1,12 @@
 import inspect
 import json
-from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from ptmelt.utils.evaluation import ensemble_predictions, make_predictions
-from ptmelt.utils.statistics import compute_metrics, compute_rmse, compute_rsquared
+from ptmelt.utils.statistics import compute_rmse, compute_rsquared
 from ptmelt.utils.visualization import (
     point_cloud_plot,
     point_cloud_plot_with_uncertainty,
@@ -125,8 +124,8 @@ def _parse_split_triplet(data, field_name: str):
     if isinstance(data, str):
         try:
             parsed = json.loads(data)
-        except Exception:
-            raise ValueError(f"Invalid {field_name} JSON.")
+        except Exception as exc:
+            raise ValueError(f"Invalid {field_name} JSON.") from exc
 
     if not isinstance(parsed, (list, tuple)) or len(parsed) != 3:
         raise ValueError(
@@ -407,7 +406,7 @@ async def evaluate_supervised_model(request: Request):
             )
         output_indices = [output_index]
 
-    print(f"Finished predictions, preparing plots...")
+    print("Finished predictions, preparing plots...")
 
     # Create a 1x3 subplot for training, validation, and test data
     fig, axes = plt.subplots(1, 3, figsize=(18, 6))
@@ -518,7 +517,7 @@ async def evaluate_supervised_model(request: Request):
     fig.suptitle("Predictions")
     fig.tight_layout(rect=[0, 0, 1, 0.96])
 
-    print(f"Plots prepared, converting to images...")
+    print("Plots prepared, converting to images...")
 
     # Convert figure to image data URIs and return
     response = convert_fig_to_image(fig, image_format="pdf")

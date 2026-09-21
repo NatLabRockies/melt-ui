@@ -1,14 +1,12 @@
 import json
 import time
 from pathlib import Path
-from typing import Optional
 from uuid import uuid4
 
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
-from ptmelt.utils.preprocessing import get_normalizers
 from sklearn.datasets import make_blobs, make_regression
 
 router = APIRouter()
@@ -459,7 +457,9 @@ async def excel_inspect(
         except Exception:
             pass
         _UPLOAD_INDEX.pop(dataset_id, None)
-        raise HTTPException(status_code=400, detail=f"Failed to read dataset file: {e}")
+        raise HTTPException(
+            status_code=400, detail=f"Failed to read dataset file: {e}"
+        ) from e
 
 
 @router.post("/excel_inspect_by_id")
@@ -497,7 +497,9 @@ async def excel_inspect_by_id(request: Request):
             "preview_rows": df_preview.to_dict(orient="records"),
         }
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to inspect sheet: {e}")
+        raise HTTPException(
+            status_code=400, detail=f"Failed to inspect sheet: {e}"
+        ) from e
 
 
 @router.post("/excel_build_xy")
@@ -601,7 +603,7 @@ async def excel_build_xy(request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/regression_data")
@@ -928,8 +930,8 @@ async def prepare_temporal_evaluation_data(request: Request):
         )
 
     # Apply external scalers if provided, otherwise identity (no scaling)
-    x_scaler: Optional[object] = None
-    y_scaler: Optional[object] = None
+    x_scaler: object | None = None
+    y_scaler: object | None = None
     x_norm_dict = body.get("x_normalizer") or {}
     y_norm_dict = body.get("y_normalizer") or {}
 
