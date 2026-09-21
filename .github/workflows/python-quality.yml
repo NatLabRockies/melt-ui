@@ -1,0 +1,35 @@
+name: Python quality
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install development tools
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Ruff
+        run: ruff check melt-ui
+
+      - name: Black
+        run: black --check melt-ui
+
+      - name: Compile Python sources
+        run: python -m compileall -q melt-ui
