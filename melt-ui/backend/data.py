@@ -9,11 +9,14 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 from sklearn.datasets import make_blobs, make_regression
 
+from .path_access import resolve_write_directory
+
 router = APIRouter()
 
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 DATASET_DIR = APP_ROOT / "datasets"
+SAVED_DATA_DIR = APP_ROOT / "saved_data"
 DATASET_DIR.mkdir(parents=True, exist_ok=True)
 UPLOAD_DIR = DATASET_DIR
 _SUPPORTED_DATA_EXTENSIONS = {".xlsx", ".csv"}
@@ -276,14 +279,38 @@ async def save_tabular_data(request: Request):
         return JSONResponse(status_code=400, content={"error": str(e)})
 
     save_dir_raw = str(body.get("save_dir", "saved_data")).strip() or "saved_data"
-    save_dir = Path(save_dir_raw)
-    if not save_dir.is_absolute():
-        save_dir = Path.cwd() / save_dir
+    requested_save_dir = Path(save_dir_raw).expanduser()
+    if not requested_save_dir.is_absolute():
+        requested_save_dir = APP_ROOT / requested_save_dir
+
+    try:
+        save_dir = resolve_write_directory(
+            request.app,
+            requested_save_dir,
+            body.get("save_dir_grant"),
+            managed_roots=(SAVED_DATA_DIR,),
+        )
+    except PermissionError as exc:
+        return JSONResponse(status_code=403, content={"error": str(exc)})
+
     save_dir.mkdir(parents=True, exist_ok=True)
 
     filename_raw = str(body.get("filename", "")).strip()
     suffix = f".{fmt}"
     if filename_raw:
+        if (
+            filename_raw in {".", ".."}
+            or "/" in filename_raw
+            or "\\" in filename_raw
+            or "\x00" in filename_raw
+        ):
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "filename must be a plain filename without path separators."
+                },
+            )
+
         filename = filename_raw
         if not filename.lower().endswith(suffix):
             filename = f"{filename}{suffix}"
@@ -291,7 +318,13 @@ async def save_tabular_data(request: Request):
         ts = int(time.time())
         filename = f"tabular_data_{ts}_{uuid4().hex[:8]}{suffix}"
 
-    out_path = save_dir / filename
+    out_path = (save_dir / filename).resolve()
+    if out_path.parent != save_dir.resolve():
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Output path escapes the selected save directory."},
+        )
+
     if not overwrite:
         out_path = _avoid_overwrite(out_path)
 

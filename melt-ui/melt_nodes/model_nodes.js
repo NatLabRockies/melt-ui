@@ -19,9 +19,16 @@ class SaveModelNode extends AsyncMultiOutputNodeBase {
     this.addProperty("include_history", false, "boolean");
     this.addProperty("endpoint", "/save_model", "string");
 
+    // Runtime-only authorization for an explicitly selected external directory.
+    this._saveDirGrant = null;
+
     // Widgets
     this.addWidget("text", "Save Dir", this.properties.save_dir, (v) => {
       this.properties.save_dir = v;
+      this._saveDirGrant = null;
+    });
+    this.addWidget("button", "Browse Save Dir...", null, () => {
+      this._browseSaveDirectory();
     });
     this.addWidget("text", "Filename", this.properties.filename, (v) => {
       this.properties.filename = v;
@@ -38,7 +45,30 @@ class SaveModelNode extends AsyncMultiOutputNodeBase {
       },
     );
 
-    this.size = [300, 200];
+    this.size = [300, 230];
+  }
+
+  _browseSaveDirectory() {
+    window.MeltApi.fetch("/browse_directory", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "Select Model Save Directory",
+      }),
+    })
+      .then((r) => r.json())
+      .then((j) => {
+        if (!j || !j.path) return;
+        this.properties.save_dir = j.path;
+        this._saveDirGrant = j.grant_id || null;
+
+        const widget = this.widgets?.find((w) => w.name === "Save Dir");
+        if (widget) widget.value = j.path;
+
+        if (this._runner) this._runner.invalidate();
+        this.setDirtyCanvas(true, true);
+      })
+      .catch((e) => console.error("Browse save directory error:", e));
   }
 
   async fetch(resolvedInput) {
@@ -64,6 +94,7 @@ class SaveModelNode extends AsyncMultiOutputNodeBase {
     const payload = {
       model: model,
       save_dir: this.properties.save_dir,
+      save_dir_grant: this._saveDirGrant,
       filename:
         this.properties.filename && this.properties.filename.trim().length > 0
           ? this.properties.filename

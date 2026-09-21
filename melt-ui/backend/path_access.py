@@ -73,6 +73,50 @@ def grant_file_access(app, path: str | Path) -> str:
     return grant_id
 
 
+def grant_directory_access(app, path: str | Path) -> str:
+    resolved = _resolve_path(path)
+    if not resolved.exists() or not resolved.is_dir():
+        raise ValueError(f"Selected path is not a directory: {resolved}")
+
+    store = _grant_store(app)
+    _cleanup_grants(store)
+
+    grant_id = uuid.uuid4().hex
+    store[grant_id] = {
+        "kind": "directory",
+        "path": str(resolved),
+        "expires_at": time.monotonic() + _PATH_GRANT_TTL_SECONDS,
+    }
+    return grant_id
+
+
+def require_directory_grant(app, path: str | Path, grant_id: Any) -> Path:
+    resolved = _resolve_path(path)
+    token = str(grant_id or "").strip()
+
+    if not token:
+        raise PermissionError(
+            "External directory access requires selecting the directory with Browse."
+        )
+
+    store = _grant_store(app)
+    _cleanup_grants(store)
+
+    entry = store.get(token)
+    if entry is None or entry.get("kind") != "directory":
+        raise PermissionError(
+            "The directory access grant is missing or expired. "
+            "Select the directory again."
+        )
+
+    if entry.get("path") != str(resolved):
+        raise PermissionError(
+            "The directory access grant does not match the requested path."
+        )
+
+    return resolved
+
+
 def require_file_grant(app, path: str | Path, grant_id: Any) -> Path:
     resolved = _resolve_path(path)
     token = str(grant_id or "").strip()
@@ -113,3 +157,19 @@ def resolve_read_file(
             return resolved
 
     return require_file_grant(app, resolved, grant_id)
+
+
+def resolve_write_directory(
+    app,
+    path: str | Path,
+    grant_id: Any = None,
+    *,
+    managed_roots: tuple[Path, ...] = (),
+) -> Path:
+    resolved = _resolve_path(path)
+
+    for root in managed_roots:
+        if path_is_within(resolved, root):
+            return resolved
+
+    return require_directory_grant(app, resolved, grant_id)

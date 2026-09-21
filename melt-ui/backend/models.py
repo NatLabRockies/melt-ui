@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import inspect
 import json
-import os
 import re
 import uuid
 from collections.abc import Mapping
@@ -17,7 +16,12 @@ from safetensors import safe_open
 from safetensors.torch import load_file as safetensors_load_file
 from safetensors.torch import save_file as safetensors_save_file
 
-from .path_access import grant_file_access, resolve_read_file
+from .path_access import (
+    grant_directory_access,
+    grant_file_access,
+    resolve_read_file,
+    resolve_write_directory,
+)
 
 router = APIRouter()
 
@@ -603,20 +607,29 @@ def _build_model_from_init(init_cfg: Mapping[str, Any]) -> Any:
     return ArtificialNeuralNetwork(**common_kwargs)
 
 
-def _resolve_path(save_dir: str, filename: str) -> Path:
-    save_dir = save_dir or "saved_models"
-    base = Path(save_dir)
-    if not base.is_absolute():
-        base = (Path.cwd() / base).resolve()
+def _resolve_path(save_dir: str | Path, filename: str) -> Path:
+    base = Path(save_dir).expanduser().resolve()
 
-    fname = filename or "model.safetensors"
+    fname = str(filename or "model.safetensors").strip()
+    if (
+        not fname
+        or fname in {".", ".."}
+        or "/" in fname
+        or "\\" in fname
+        or "\x00" in fname
+    ):
+        raise ValueError(
+            "Model filename must be a plain filename without path separators."
+        )
+
     if not fname.endswith(".safetensors"):
         fname += ".safetensors"
 
-    # Prevent path separators in filename
-    fname = os.path.basename(fname)
+    output = (base / fname).resolve()
+    if output.parent != base:
+        raise ValueError("Model output path escapes the selected save directory.")
 
-    return (base / fname).resolve()
+    return output
 
 
 def _avoid_overwrite(path: Path) -> Path:
@@ -635,12 +648,29 @@ async def save_model(request: Request):
     model_dict = body.get("model") or {}
     # model_id = model_ref.get("model_id")
     # model_meta = model_ref.get("model_meta") or {}
-    save_dir = str(body.get("save_dir") or "saved_models")
+    save_dir_raw = str(body.get("save_dir") or "saved_models").strip()
     filename = body.get("filename")  # optional
     overwrite = bool(body.get("overwrite", False))
     include_history = bool(body.get("include_history", False))
 
-    # upack the model which is actually model_id and model_meta dict
+    if not save_dir_raw:
+        save_dir_raw = "saved_models"
+
+    requested_save_dir = Path(save_dir_raw).expanduser()
+    if not requested_save_dir.is_absolute():
+        requested_save_dir = SAVED_MODELS_DIR.parent / requested_save_dir
+
+    try:
+        save_dir = resolve_write_directory(
+            request.app,
+            requested_save_dir,
+            body.get("save_dir_grant"),
+            managed_roots=(SAVED_MODELS_DIR,),
+        )
+    except PermissionError as exc:
+        return JSONResponse(status_code=403, content={"error": str(exc)})
+
+    # unpack the model, which is actually a model_id/model_meta dict
     if isinstance(model_dict, dict) and "model_id" in model_dict:
         model_id = model_dict["model_id"]
         print(f"Model ID: {model_id}")
@@ -692,8 +722,15 @@ async def save_model(request: Request):
 
     # state = _as_cpu_contiguous_state_dict(raw_state)
 
-    # Prepare output path
-    out_path = _resolve_path(save_dir, str(filename or f"{model_id}.safetensors"))
+    # Prepare output path.
+    try:
+        out_path = _resolve_path(
+            save_dir,
+            str(filename or f"{model_id}.safetensors"),
+        )
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"error": str(exc)})
+
     if not overwrite:
         out_path = _avoid_overwrite(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1171,6 +1208,62 @@ async def browse_file(request: Request):
         )
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"Browse failed: {e}"})
+
+
+@router.post("/browse_directory")
+async def browse_directory(request: Request):
+    """Open a native OS directory picker and grant access to the selection."""
+    import asyncio
+    import sys
+
+    body = await request.json()
+    title = str(body.get("title", "Select Directory"))
+    initial_dir = str(body.get("initial_dir", str(Path.home())))
+
+    script = (
+        "import tkinter as tk; from tkinter import filedialog; "
+        "root = tk.Tk(); root.withdraw(); root.wm_attributes('-topmost', True); "
+        f"p = filedialog.askdirectory(title={repr(title)}, "
+        f"initialdir={repr(initial_dir)}); "
+        "print(p or '', end='')"
+    )
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable,
+            "-c",
+            script,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=120.0)
+        selected = stdout.decode("utf-8", errors="replace").strip()
+        if not selected:
+            return JSONResponse(content={"path": None, "cancelled": True})
+
+        try:
+            selected_path = Path(selected).expanduser().resolve()
+            grant_id = grant_directory_access(request.app, selected_path)
+        except ValueError as exc:
+            return JSONResponse(status_code=400, content={"error": str(exc)})
+
+        return JSONResponse(
+            content={
+                "path": str(selected_path),
+                "grant_id": grant_id,
+                "cancelled": False,
+            }
+        )
+    except TimeoutError:
+        return JSONResponse(
+            status_code=408,
+            content={"error": "Directory dialog timed out."},
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Directory browse failed: {e}"},
+        )
 
     # body = await request.json()
 

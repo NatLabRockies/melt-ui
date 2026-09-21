@@ -2412,12 +2412,19 @@ class SaveDataNode extends AsyncMultiOutputNodeBase {
     this.addProperty("label_col", "label", "string");
     this.addProperty("endpoint", "/save_tabular_data", "string");
 
+    // Runtime-only authorization for an explicitly selected external directory.
+    this._saveDirGrant = null;
+
     this.addDropdownPropertyWidget("Format", "format", {
       values: ["xlsx", "csv"],
       default: "xlsx",
     });
     this.addWidget("text", "Save Dir", this.properties.save_dir, (v) => {
       this.properties.save_dir = v;
+      this._saveDirGrant = null;
+    });
+    this.addWidget("button", "Browse Save Dir...", null, () => {
+      this._browseSaveDirectory();
     });
     this.addWidget("text", "Filename", this.properties.filename, (v) => {
       this.properties.filename = v;
@@ -2439,7 +2446,30 @@ class SaveDataNode extends AsyncMultiOutputNodeBase {
       default: false,
     });
 
-    this.size = [290, 275];
+    this.size = [290, 305];
+  }
+
+  _browseSaveDirectory() {
+    window.MeltApi.fetch("/browse_directory", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "Select Data Save Directory",
+      }),
+    })
+      .then((r) => r.json())
+      .then((j) => {
+        if (!j || !j.path) return;
+        this.properties.save_dir = j.path;
+        this._saveDirGrant = j.grant_id || null;
+
+        const widget = this.widgets?.find((w) => w.name === "Save Dir");
+        if (widget) widget.value = j.path;
+
+        if (this._runner) this._runner.invalidate();
+        this.setDirtyCanvas(true, true);
+      })
+      .catch((e) => console.error("Browse save directory error:", e));
   }
 
   async fetch(resolvedInput) {
@@ -2478,6 +2508,7 @@ class SaveDataNode extends AsyncMultiOutputNodeBase {
       labels,
       format: this.properties.format || "xlsx",
       save_dir: this.properties.save_dir || "saved_data",
+      save_dir_grant: this._saveDirGrant,
       filename: this.properties.filename || "",
       sheet_name: this.properties.sheet_name || "data",
       split: this.properties.split || "train",
