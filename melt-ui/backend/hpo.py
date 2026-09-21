@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 import traceback
 import uuid
 from collections.abc import Mapping
@@ -1331,8 +1332,62 @@ def _default_search_space(trainer_family: str = "static") -> dict[str, Any]:
     return search_space
 
 
+_TUNING_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
+
+
+def _normalize_tuning_id(value: Any) -> str:
+    tuning_id = str(value or "").strip()
+    if not tuning_id:
+        raise ValueError("tuning_id is required.")
+    if not _TUNING_ID_PATTERN.fullmatch(tuning_id):
+        raise ValueError(
+            "tuning_id must contain only letters, numbers, underscores, and "
+            "hyphens, must start with a letter or number, and must be at most "
+            "128 characters."
+        )
+    return tuning_id
+
+
+def _validate_artifact_path(path: Path) -> Path:
+    root = TUNING_RESULTS_DIR.resolve()
+    resolved = path.expanduser().resolve()
+
+    if resolved.parent != root:
+        raise ValueError("Hyperparameter artifacts must stay inside tuning_results.")
+    if resolved.suffix.lower() != ".json":
+        raise ValueError("Hyperparameter artifacts must be JSON files.")
+
+    return resolved
+
+
 def _artifact_path(tuning_id: str) -> Path:
-    return TUNING_RESULTS_DIR / f"{tuning_id}.json"
+    safe_id = _normalize_tuning_id(tuning_id)
+    return _validate_artifact_path(TUNING_RESULTS_DIR / f"{safe_id}.json")
+
+
+def _artifact_path_from_reference(value: Any) -> Path:
+    raw = str(value or "").strip()
+    if not raw:
+        raise ValueError("artifact_path is required.")
+
+    supplied = Path(raw).expanduser()
+    if supplied.is_absolute():
+        candidate = supplied
+    elif len(supplied.parts) == 1:
+        candidate = TUNING_RESULTS_DIR / supplied
+    elif supplied.parts[0] == "tuning_results":
+        candidate = TUNING_RESULTS_DIR.parent / supplied
+    else:
+        raise ValueError("artifact_path must identify a file inside tuning_results.")
+
+    return _validate_artifact_path(candidate)
+
+
+def _artifact_reference(path: Path) -> str:
+    root = TUNING_RESULTS_DIR.resolve()
+    resolved = _validate_artifact_path(path)
+    relative = resolved.relative_to(root)
+    return str(Path("tuning_results") / relative)
 
 
 def _write_artifact(tuning_id: str, payload: Mapping[str, Any]) -> Path:
@@ -1350,6 +1405,15 @@ async def melt_hyperparameter_tuner(request: Request):
         return _error_response(exc, step="parse_request_json", debug=True)
 
     debug_errors = bool(body.get("debug_errors", False))
+
+    try:
+        tuning_id = _normalize_tuning_id(body.get("tuning_id") or uuid.uuid4().hex)
+    except ValueError as exc:
+        return _error_response(
+            exc,
+            step="validate_tuning_id",
+            debug=debug_errors,
+        )
     run_id = register_training_run(
         request.app,
         str(body.get("training_run_id") or "").strip() or None,
@@ -1429,7 +1493,6 @@ async def melt_hyperparameter_tuner(request: Request):
         )
 
         step = "serialize_result"
-        tuning_id = str(body.get("tuning_id") or uuid.uuid4().hex)
         emitted_best_hyperparameters = _strip_emitted_epoch_hyperparameters(
             result.best_hyperparameters
         )
@@ -1451,7 +1514,7 @@ async def melt_hyperparameter_tuner(request: Request):
 
         if bool(body.get("autosave", True)):
             path = _write_artifact(tuning_id, response_payload)
-            response_payload["artifact_path"] = str(path)
+            response_payload["artifact_path"] = _artifact_reference(path)
 
         return JSONResponse(content=_json_safe(response_payload))
     except TrainingCancelledError:
@@ -1499,39 +1562,47 @@ async def validate_hpo_search_space(request: Request):
 @router.post("/save_hyperparameters")
 async def save_hyperparameters(request: Request):
     body = await request.json()
-    tuning_id = str(body.get("tuning_id") or uuid.uuid4().hex)
-    payload = body.get("tuning_result") or body.get("hyperparameters") or body
-    path = _write_artifact(
-        tuning_id,
-        {
+
+    try:
+        tuning_id = _normalize_tuning_id(body.get("tuning_id") or uuid.uuid4().hex)
+        payload = body.get("tuning_result") or body.get("hyperparameters") or body
+        path = _write_artifact(
+            tuning_id,
+            {
+                "tuning_id": tuning_id,
+                "created_at": datetime.now(UTC).isoformat(),
+                "payload": payload,
+            },
+        )
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"error": str(exc)})
+
+    return JSONResponse(
+        content={
             "tuning_id": tuning_id,
-            "created_at": datetime.now(UTC).isoformat(),
-            "payload": payload,
-        },
+            "artifact_path": _artifact_reference(path),
+        }
     )
-    return JSONResponse(content={"tuning_id": tuning_id, "artifact_path": str(path)})
 
 
 @router.post("/load_hyperparameters")
 async def load_hyperparameters(request: Request):
     body = await request.json()
     path_raw = body.get("path") or body.get("artifact_path")
-    if not path_raw:
-        tuning_id = str(body.get("tuning_id") or "").strip()
-        if not tuning_id:
-            return JSONResponse(
-                status_code=400,
-                content={"error": "Provide path/artifact_path or tuning_id."},
-            )
-        path = _artifact_path(tuning_id)
-    else:
-        path = Path(str(path_raw)).expanduser()
-        if not path.is_absolute():
-            path = (Path.cwd() / path).resolve()
+
+    try:
+        if path_raw:
+            path = _artifact_path_from_reference(path_raw)
+        else:
+            tuning_id = _normalize_tuning_id(body.get("tuning_id"))
+            path = _artifact_path(tuning_id)
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"error": str(exc)})
 
     if not path.exists() or not path.is_file():
         return JSONResponse(
-            status_code=404, content={"error": f"File not found: {path}"}
+            status_code=404,
+            content={"error": f"Hyperparameter artifact not found: {path.name}"},
         )
 
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -1543,6 +1614,6 @@ async def load_hyperparameters(request: Request):
         content={
             "tuning_result": payload,
             "best_hyperparameters": best_hyperparameters or {},
-            "artifact_path": str(path),
+            "artifact_path": _artifact_reference(path),
         }
     )

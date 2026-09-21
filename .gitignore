@@ -14,3 +14,10 @@ venv/
 # Coverage
 .coverage
 htmlcov/
+
+# MELT-UI runtime artifacts
+/melt-ui/datasets/
+/melt-ui/tuning_results/
+/melt-ui/saved_models/
+/melt-ui/saved_data/
+/melt-ui/frontend/workflows/user_workflow/
