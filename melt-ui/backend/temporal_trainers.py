@@ -103,6 +103,8 @@ async def melt_temporal_supervised_trainer(request: Request):
 
     x = np.asarray(x_raw)
     y = np.asarray(y_raw)
+    if y.ndim == 1:
+        y = y.reshape(-1, 1)
 
     val_size = float(body.get("val_size", 0.1))
     test_size = float(body.get("test_size", 0.1))
@@ -380,6 +382,7 @@ async def melt_temporal_supervised_trainer(request: Request):
         l1_reg=l1_reg,
         l2_reg=l2_reg,
         num_mixtures=num_mixtures,
+        seed=random_state,
     )
     model.build()
 
@@ -527,6 +530,8 @@ async def melt_temporal_transformer_trainer(request: Request):
 
     x = np.asarray(x_raw)
     y = np.asarray(y_raw)
+    if y.ndim == 1:
+        y = y.reshape(-1, 1)
 
     val_size = float(body.get("val_size", 0.1))
     test_size = float(body.get("test_size", 0.1))
@@ -820,6 +825,7 @@ async def melt_temporal_transformer_trainer(request: Request):
         l1_reg=l1_reg,
         l2_reg=l2_reg,
         num_mixtures=num_mixtures,
+        seed=random_state,
     )
     model.build()
 

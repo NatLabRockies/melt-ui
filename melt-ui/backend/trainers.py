@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import inspect
 import io
 import time
 from collections import OrderedDict
@@ -120,7 +121,14 @@ async def melt_supervised_trainer(request: Request):
 
     try:
         # unpack settings from node
-        x = np.asarray(body.get("x"))
+        x_raw = body.get("x")
+        if x_raw is None:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Missing x input for supervised training."},
+            )
+
+        x = np.asarray(x_raw)
         model_architecture = str(body.get("model_architecture", "ann")).lower()
         if model_architecture == "vae":
             return JSONResponse(
@@ -144,6 +152,31 @@ async def melt_supervised_trainer(request: Request):
             return JSONResponse(
                 status_code=400,
                 content={"error": "Missing y input for supervised architectures."},
+            )
+
+        if x.ndim != 2:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": (
+                        "Supervised x input must have shape [samples, features]. "
+                        f"Received shape={list(x.shape)}."
+                    )
+                },
+            )
+
+        if y.ndim == 1:
+            y = y.reshape(-1, 1)
+        elif y.ndim != 2:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Supervised y input must be 1D or 2D."},
+            )
+
+        if x.shape[0] != y.shape[0]:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "x and y must have matching sample counts."},
             )
 
         val_size = float(body.get("val_size", 0.1))
@@ -246,6 +279,7 @@ async def melt_supervised_trainer(request: Request):
                 l1_reg=l1_reg,
                 l2_reg=l2_reg,
                 num_mixtures=num_mixtures,
+                seed=random_state,
             )
         elif model_architecture == "resnet":
             model = ResidualNeuralNetwork(
@@ -259,6 +293,7 @@ async def melt_supervised_trainer(request: Request):
                 l1_reg=l1_reg,
                 l2_reg=l2_reg,
                 num_mixtures=num_mixtures,
+                seed=random_state,
             )
         elif model_architecture == "bnn":
             model = BayesianNeuralNetwork(
@@ -272,6 +307,7 @@ async def melt_supervised_trainer(request: Request):
                 l1_reg=l1_reg,
                 l2_reg=l2_reg,
                 num_mixtures=num_mixtures,
+                seed=random_state,
             )
         else:
             return JSONResponse(
@@ -360,28 +396,39 @@ async def melt_cancel_training(request: Request):
 
 @router.get("/models/{model_id}/state_dict")
 async def get_model_state_dict(request: Request, model_id: str):
-    model_store = getattr(request.app.state, "model_store", {})
-    model_entry = model_store.get(model_id, None)
+    model_store = getattr(request.app.state, "model_store", None)
+    if model_store is None:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Model store is not initialized."},
+        )
+
+    model_entry = model_store.get(model_id)
+    if inspect.isawaitable(model_entry):
+        model_entry = await model_entry
+
     if not model_entry:
         return JSONResponse(
-            status_code=404, content={"error": f"Model ID {model_id} not found."}
+            status_code=404,
+            content={"error": f"Model ID {model_id} not found."},
         )
-    # If there is a stored model object, serialize the state_dict
-    state_dict = (
-        model_entry["model"].state_dict()
-        if hasattr(model_entry["model"], "state_dict")
-        else model_entry.get("state_dict")
-    )
-    # Serialize state_dict to a bytes buffer
+
+    model = model_entry.get("model")
+    if model is None or not hasattr(model, "state_dict"):
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Model ID {model_id} has no serializable model object."},
+        )
+
     buffer = io.BytesIO()
-    torch.save(state_dict, buffer)
+    torch.save(model.state_dict(), buffer)
     buffer.seek(0)
-    # Encode the bytes buffer to a base64 string
     state_dict_b64 = base64.b64encode(buffer.read()).decode("utf-8")
+
     return JSONResponse(
         content={
             "model_id": model_id,
             "state_b64": state_dict_b64,
-            "meta": model_entry["meta"],
+            "meta": model_entry.get("model_meta", {}),
         }
     )

@@ -148,6 +148,7 @@ async def melt_vae_trainer(request: Request):
             l1_reg=l1_reg,
             l2_reg=l2_reg,
             num_mixtures=num_mixtures,
+            seed=random_state,
         )
         model.build()
 

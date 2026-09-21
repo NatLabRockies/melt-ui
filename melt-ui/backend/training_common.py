@@ -259,9 +259,14 @@ def split_train_val_test(
     test_size: float,
     random_state: int,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    if val_size <= 0.0 or val_size >= 1.0:
+        raise ValueError("val_size must be in the range (0, 1).")
+    if test_size <= 0.0 or test_size >= 1.0:
+        raise ValueError("test_size must be in the range (0, 1).")
+
     test_size_combined = val_size + test_size
-    if test_size_combined <= 0.0 or test_size_combined >= 1.0:
-        raise ValueError("val_size + test_size must be in the range (0, 1).")
+    if test_size_combined >= 1.0:
+        raise ValueError("val_size + test_size must be less than 1.")
 
     x_train, x_tmp, y_train, y_tmp = train_test_split(
         x, y, test_size=test_size_combined, random_state=random_state
@@ -285,9 +290,14 @@ def split_train_val_test_temporal(
     Keeps order intact and trims test data from the end of the series to avoid
     temporal leakage.
     """
+    if val_size <= 0.0 or val_size >= 1.0:
+        raise ValueError("val_size must be in the range (0, 1).")
+    if test_size <= 0.0 or test_size >= 1.0:
+        raise ValueError("test_size must be in the range (0, 1).")
+
     test_size_combined = val_size + test_size
-    if test_size_combined <= 0.0 or test_size_combined >= 1.0:
-        raise ValueError("val_size + test_size must be in the range (0, 1).")
+    if test_size_combined >= 1.0:
+        raise ValueError("val_size + test_size must be less than 1.")
 
     n_samples = int(x.shape[0])
     if n_samples != int(y.shape[0]):

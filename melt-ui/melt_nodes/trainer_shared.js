@@ -164,11 +164,11 @@
     if (
       !Number.isFinite(valSize) ||
       !Number.isFinite(testSize) ||
-      valSize < 0 ||
-      testSize < 0 ||
+      valSize <= 0 ||
+      testSize <= 0 ||
       valSize + testSize >= 1
     ) {
-      return "Validation/Test split must satisfy: val_size >= 0, test_size >= 0, and val_size + test_size < 1";
+      return "Validation/Test split must satisfy: val_size > 0, test_size > 0, and val_size + test_size < 1";
     }
 
     const batchSize = parseInt(properties.batch_size);

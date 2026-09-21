@@ -12,6 +12,7 @@ from backend.models import router as model_router
 from backend.preprocess import router as preprocess_router
 from backend.sam import router as sam_router
 from backend.temporal_trainers import router as temporal_trainers_router
+from backend.trainers import attach_model_store
 from backend.trainers import router as trainers_router
 from backend.vae_trainers import router as vae_trainers_router
 from backend.visualization import router as visualization_router
@@ -144,6 +145,7 @@ DEFAULT_HOST = os.environ.get("MELT_HOST", "127.0.0.1")
 DEFAULT_PORT = int(os.environ.get("MELT_PORT", "8000"))
 
 app = FastAPI()
+attach_model_store(app, max_items=10, ttl_seconds=3600)
 
 install_terminal_mirror()
 app.include_router(logs_router)
