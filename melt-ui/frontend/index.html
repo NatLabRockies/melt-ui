@@ -1,0 +1,877 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>MELT UI</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/litegraph.js@0.7.18/css/litegraph.css">
+  <link rel="stylesheet" href="/static/workflows/styles.css">
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+    }
+
+    #mycanvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }
+
+    /* :root {
+      --dockRightW: 0px;
+    }
+
+    #mycanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: var(--dockRightW);
+      bottom: 0;
+      width: auto;
+      height: auto;
+      display: block;
+    } */
+
+    #dockConsole {
+      position: fixed;
+      top: 0;
+      right: 0;
+      height: 100vh;
+      width: 420px;
+      max-width: 80vw;
+      min-width: 260px;
+
+      display: flex;
+      flex-direction: column;
+
+      background: rgba(20, 20, 20, 0.96);
+      color: #eee;
+      border-left: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: -10px 0 24px rgba(0, 0, 0, 0.25);
+
+      z-index: 9;
+      /* toolbar is 10 in your file */
+      transform: translateX(100%);
+      transition: transform 140ms ease-out;
+    }
+
+    #dockConsole.open {
+      transform: translateX(0);
+    }
+
+    #dockConsoleHeader {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+      background: rgba(255, 255, 255, 0.05);
+      font-family: system-ui, sans-serif;
+    }
+
+    #dockConsoleHeader button {
+      padding: 4px 10px;
+    }
+
+    #dockConsoleBody {
+      flex: 1;
+      overflow: auto;
+      padding: 10px;
+      font: 12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      white-space: pre-wrap;
+    }
+
+    #dockConsole .line {
+      padding: 2px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    #dockConsole .resize-handle {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 6px;
+      height: 100%;
+      cursor: ew-resize;
+    }
+
+
+    #toolbar {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 10;
+      padding: 6px 10px;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      gap: 8px;
+      font-family: system-ui, sans-serif;
+      display: flex;
+      align-items: center;
+    }
+
+    #toolbar button {
+      padding: 4px 10px;
+    }
+
+    #toolbar input[type="file"] {
+      display: none;
+    }
+
+    #status {
+      margin-left: 8px;
+      color: #555;
+    }
+
+    /* ── Rich node search results ── */
+    .melt-search-category-header {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #888;
+      padding: 8px 10px 3px;
+      margin-top: 4px;
+      border-top: 1px solid rgba(255, 255, 255, .07);
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .melt-search-category-header:first-child {
+      margin-top: 0;
+      border-top: none;
+    }
+
+    .litegraph.lite-search-item {
+      padding: 4px 10px !important;
+    }
+
+    .melt-item-title {
+      display: block;
+      font-weight: 500;
+      font-size: 13px;
+      line-height: 1.4;
+      color: #ddd;
+    }
+
+    .melt-item-desc {
+      display: block;
+      font-size: 11px;
+      color: #888;
+      line-height: 1.3;
+      margin-top: 1px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 380px;
+    }
+
+    .litegraph.lite-search-item:hover .melt-item-title,
+    .litegraph.lite-search-item.selected .melt-item-title {
+      color: #fff;
+    }
+
+    .litegraph.lite-search-item:hover .melt-item-desc,
+    .litegraph.lite-search-item.selected .melt-item-desc {
+      color: #bbb;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="toolbar">
+    <!-- <button id="run">Run</button> -->
+    <button id="execute">Execute</button>
+    <button id="pause">Pause</button>
+    <button id="stop">Stop</button>
+    <button id="clear">Clear</button>
+    <button id="reset">Reset</button>
+    <button id="workflows">Workflows</button>
+    <button id="saveAs">Save As</button>
+    <button id="export">Export</button>
+    <button id="import">Import</button>
+    <button id="consoleToggle">Console</button>
+    <input id="importFile" type="file" accept=".json,application/json" />
+    <span id="status">stopped</span>
+  </div>
+
+  <canvas id="mycanvas"></canvas>
+
+  <div id="dockConsole" aria-hidden="true">
+    <div class="resize-handle" title="Drag to resize"></div>
+
+    <div id="dockConsoleHeader">
+      <strong style="flex:1">Console</strong>
+      <button id="dockConsoleClear">Clear</button>
+      <button id="dockConsoleClose">Close</button>
+    </div>
+
+    <div id="dockConsoleBody"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/litegraph.js@0.7.18/build/litegraph.min.js"></script>
+  <script src="/static/graph_runner.js"></script>
+  <script src="/static/workflows/browser.js?v=20260515"></script>
+  <script src="/nodes/custom_classes.js"></script>
+  <script src="/nodes/custom_widgets.js"></script>
+  <script src="/nodes/nodes.js"></script>
+  <script src="/nodes/data_nodes.js"></script>
+  <script src="/nodes/debug_nodes.js"></script>
+  <script src="/nodes/vis_nodes.js"></script>
+  <script src="/nodes/trainer_shared.js"></script>
+  <script src="/nodes/hpo_nodes.js"></script>
+  <script src="/nodes/trainer_nodes.js"></script>
+  <script src="/nodes/temporal_trainer_nodes.js"></script>
+  <script src="/nodes/vae_nodes.js"></script>
+  <script src="/nodes/evaluation_nodes.js"></script>
+  <script src="/nodes/model_nodes.js"></script>
+  <script src="/nodes/sam_nodes.js"></script>
+  <script src="/nodes/utils_nodes.js"></script>
+  <script>
+    // status helper
+    const statusEl = document.getElementById("status");
+    function setStatus(txt) { if (statusEl) statusEl.textContent = txt; }
+
+    // setup storage keys and graph/canvas
+    const STORAGE_KEY_GRAPH = "lg:graph:v1";
+    const STORAGE_KEY_VIEW = "lg:view:v1";
+
+    const graph = new LGraph();
+    const canvas = new LGraphCanvas("#mycanvas", graph);
+
+    // Enable the slot-type filter dropdowns in the LiteGraph search box
+    LiteGraph.search_filter_enabled = true;
+
+    function removeNonMeltNodeTypes() {
+      if (!window.LiteGraph || !LiteGraph.registered_node_types) return;
+
+      const keepPrefix = "MELT/";
+      const nodeTypes = Object.keys(LiteGraph.registered_node_types);
+      for (const type of nodeTypes) {
+        if (!type.startsWith(keepPrefix)) {
+          LiteGraph.unregisterNodeType(type);
+        }
+      }
+    }
+
+    removeNonMeltNodeTypes();
+
+    /**
+     * Scan every registered MELT node once and populate LiteGraph's slot-type
+     * registries so the search-box "filter by type" dropdowns actually work.
+     * Generic-typed nodes (Reroute, Print, etc.) are added to every slot-type
+     * bucket so they always appear in connection-contextual searches.
+     */
+    function populateSlotTypeRegistries() {
+      if (!window.LiteGraph) return;
+      const genericIn = [];
+      const genericOut = [];
+
+      for (const [typeName, Ctor] of Object.entries(LiteGraph.registered_node_types)) {
+        try {
+          const tmp = new Ctor(Ctor.title || "tmp");
+          let hasGenericIn = false, hasGenericOut = false;
+
+          (tmp.inputs || []).forEach(inp => {
+            const st = inp.type;
+            if (!st || st === 0 || st === "*" || st === "") { hasGenericIn = true; return; }
+            const s = String(st);
+            if (!LiteGraph.registered_slot_in_types[s])
+              LiteGraph.registered_slot_in_types[s] = { nodes: [] };
+            if (!LiteGraph.registered_slot_in_types[s].nodes.includes(typeName))
+              LiteGraph.registered_slot_in_types[s].nodes.push(typeName);
+            if (!LiteGraph.slot_types_in.includes(s.toLowerCase()))
+              LiteGraph.slot_types_in.push(s.toLowerCase());
+          });
+
+          (tmp.outputs || []).forEach(out => {
+            const st = out.type;
+            if (!st || st === 0 || st === "*" || st === "") { hasGenericOut = true; return; }
+            const s = String(st);
+            if (!LiteGraph.registered_slot_out_types[s])
+              LiteGraph.registered_slot_out_types[s] = { nodes: [] };
+            if (!LiteGraph.registered_slot_out_types[s].nodes.includes(typeName))
+              LiteGraph.registered_slot_out_types[s].nodes.push(typeName);
+            if (!LiteGraph.slot_types_out.includes(s.toLowerCase()))
+              LiteGraph.slot_types_out.push(s.toLowerCase());
+          });
+
+          if (hasGenericIn) genericIn.push(typeName);
+          if (hasGenericOut) genericOut.push(typeName);
+        } catch (e) {
+          console.warn("populateSlotTypeRegistries: skipping", typeName, e);
+        }
+      }
+
+      LiteGraph.slot_types_in.sort();
+      LiteGraph.slot_types_out.sort();
+
+      // Generic-type nodes must appear when the user filters by any slot type
+      for (const typeName of genericIn)
+        for (const st of Object.keys(LiteGraph.registered_slot_in_types))
+          if (!LiteGraph.registered_slot_in_types[st].nodes.includes(typeName))
+            LiteGraph.registered_slot_in_types[st].nodes.push(typeName);
+
+      for (const typeName of genericOut)
+        for (const st of Object.keys(LiteGraph.registered_slot_out_types))
+          if (!LiteGraph.registered_slot_out_types[st].nodes.includes(typeName))
+            LiteGraph.registered_slot_out_types[st].nodes.push(typeName);
+    }
+
+    populateSlotTypeRegistries();
+
+    function getMeltNodeTypes(graphRef, queryStr) {
+      if (!window.LiteGraph || !LiteGraph.registered_node_types) return [];
+
+      const query = String(queryStr !== undefined ? queryStr : (graphRef?.search_query || "")).trim().toLowerCase();
+      const filter = graphRef?.filter || null;
+      const searchBox = graphRef?.search_box || null;
+      const slotIn = searchBox?.querySelector(".slot_in_type_filter")?.value || "";
+      const slotOut = searchBox?.querySelector(".slot_out_type_filter")?.value || "";
+
+      const passesSlot = (slotType, registry, typeName) => {
+        if (!slotType) return true;
+        return !!registry?.[slotType]?.nodes?.includes(typeName);
+      };
+
+      return Object.keys(LiteGraph.registered_node_types)
+        .filter(type => type.startsWith("MELT/"))
+        .filter(type => {
+          const ctor = LiteGraph.registered_node_types[type];
+          if (!ctor) return false;
+          if (filter && ctor.filter !== filter) return false;
+          if (query && !type.toLowerCase().includes(query)
+            && !String(ctor.title || "").toLowerCase().includes(query)) return false;
+          if (!searchBox || !searchBox.querySelector(".slot_in_type_filter")) return true;
+          if (slotIn && !passesSlot(slotIn, LiteGraph.registered_slot_in_types, type)) return false;
+          if (slotOut && !passesSlot(slotOut, LiteGraph.registered_slot_out_types, type)) return false;
+          return true;
+        })
+        .sort((a, b) => {
+          const ta = String(LiteGraph.registered_node_types[a]?.title || a);
+          const tb = String(LiteGraph.registered_node_types[b]?.title || b);
+          return ta.localeCompare(tb);
+        });
+    }
+
+    // Logical ML-workflow order for category headers in the search box
+    const MELT_CATEGORY_ORDER = [
+      "Data", "Inputs", "Trainer", "Temporal", "Plot",
+      "VAE", "Model", "HPO", "SAM", "Utils", "Debug"
+    ];
+
+    // Keep the initial canvas empty so the shipped experience is MELT-only.
+    function initGraph() {
+      graph.clear();
+      setStatus("empty");
+    }
+
+
+    // Full-viewport sizing
+    function resize() { canvas.resize(window.innerWidth, window.innerHeight); }
+    window.addEventListener("resize", resize);
+    resize();
+
+    canvas.onSearchBox = function (helper, str, graphRef) {
+      const g = graphRef || canvas;
+      if (g) g.search_query = str;
+
+      // Headless callers (keyboard auto-complete, etc.) just want the list
+      if (!helper) return getMeltNodeTypes(g, str);
+
+      helper.innerHTML = "";
+      const nodeTypes = getMeltNodeTypes(g, str);
+
+      if (nodeTypes.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "litegraph lite-search-item";
+        empty.style.cssText = "opacity:.5;font-style:italic;pointer-events:none;padding:6px 10px;";
+        empty.textContent = "No matching nodes";
+        helper.appendChild(empty);
+        return null;
+      }
+
+      // Group by the middle segment(s) of "MELT/{Category}/NodeName"
+      const groups = new Map();
+      for (const type of nodeTypes) {
+        const parts = type.split("/");
+        const category = parts.length > 2 ? parts.slice(1, -1).join(" / ") : parts[0];
+        if (!groups.has(category)) groups.set(category, []);
+        groups.get(category).push(type);
+      }
+
+      // Sort categories by logical workflow order, then alphabetically
+      const sorted = [...groups.entries()].sort(([a], [b]) => {
+        const ai = MELT_CATEGORY_ORDER.indexOf(a);
+        const bi = MELT_CATEGORY_ORDER.indexOf(b);
+        if (ai === -1 && bi === -1) return a.localeCompare(b);
+        if (ai === -1) return 1;
+        if (bi === -1) return -1;
+        return ai - bi;
+      });
+
+      for (const [category, types] of sorted) {
+        const header = document.createElement("div");
+        header.className = "melt-search-category-header";
+        header.textContent = category;
+        helper.appendChild(header);
+
+        for (const type of types) {
+          const ctor = LiteGraph.registered_node_types[type];
+          const title = ctor?.title || type.split("/").pop();
+          const desc = ctor?.desc || "";
+
+          const item = document.createElement("div");
+          item.className = "litegraph lite-search-item";
+          item.dataset.type = escape(type);
+          item.innerHTML =
+            "<span class='melt-item-title'>" + title + "</span>" +
+            (desc ? "<span class='melt-item-desc'>" + desc + "</span>" : "");
+
+          item.addEventListener("click", function (e) {
+            e.stopPropagation();
+            const nodeType = unescape(this.dataset.type);
+            if (!nodeType) return;
+            const gc = g || canvas;
+            gc.graph.beforeChange();
+            const node = LiteGraph.createNode(nodeType);
+            if (node) {
+              node.pos = gc.graph_mouse ? [gc.graph_mouse[0], gc.graph_mouse[1]] : [100, 100];
+              gc.graph.add(node, false);
+              gc.graph.afterChange();
+            }
+            if (gc.search_box && gc.search_box.close) gc.search_box.close();
+          });
+
+          helper.appendChild(item);
+        }
+      }
+
+      return null; // Prevent LiteGraph's default plain-list rendering
+    };
+
+    // Keyboard Enter: derive node type from the .selected DOM element
+    canvas.onSearchBoxSelection = function (name, event, graphcanvas) {
+      const g = graphcanvas || canvas;
+      let nodeType = null;
+
+      const sb = g.search_box;
+      if (sb) {
+        const el = sb.querySelector(".helper .lite-search-item.selected")
+          || sb.querySelector(".helper .lite-search-item");
+        if (el && el.dataset && el.dataset.type) nodeType = unescape(el.dataset.type);
+      }
+
+      // Fallback: `name` is sometimes already a valid registered type string
+      if (!nodeType && LiteGraph.registered_node_types[name]) nodeType = name;
+      if (!nodeType) return;
+
+      g.graph.beforeChange();
+      const node = LiteGraph.createNode(nodeType);
+      if (node) {
+        node.pos = (g.convertEventToCanvasOffset && event)
+          ? g.convertEventToCanvasOffset(event)
+          : [100, 100];
+        g.graph.add(node, false);
+        g.graph.afterChange();
+      }
+    };
+
+    if (!loadGraphFromLocalStorage()) {
+      initGraph();
+    }
+
+    // Function to save graph to local storage
+    function saveGraphToLocalStorage() {
+      try {
+        const data = graph.serialize();
+        localStorage.setItem(STORAGE_KEY_GRAPH, JSON.stringify(data));
+        const view = { scale: canvas.ds?.scale ?? 1, offset: canvas.ds?.offset ?? [0, 0] };
+        localStorage.setItem(STORAGE_KEY_VIEW, JSON.stringify(view));
+        setStatus("saved");
+      } catch (e) {
+        console.warn("Save failed:", e);
+        setStatus("save error");
+      }
+    }
+
+    // Function to load graph from local storage
+    function loadGraphFromLocalStorage() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY_GRAPH);
+        if (!raw) return false;
+        const json = JSON.parse(raw);
+        graph.stop();
+        graph.clear();
+        graph.configure(json);
+        syncGraphWidgetsFromProperties(graph);
+        const viewRaw = localStorage.getItem(STORAGE_KEY_VIEW);
+        if (viewRaw && canvas.ds) {
+          const view = JSON.parse(viewRaw);
+          canvas.ds.scale = view.scale ?? 1;
+          canvas.ds.offset = view.offset ?? [0, 0];
+        }
+        setStatus("loaded");
+        return true;
+      } catch (e) {
+        console.warn("Load failed:", e);
+        setStatus("load error");
+        return false;
+      }
+    }
+
+    // Function to reset local storage
+    function resetLocalStorage() {
+      localStorage.removeItem(STORAGE_KEY_GRAPH);
+      localStorage.removeItem(STORAGE_KEY_VIEW);
+    }
+
+    function syncGraphWidgetsFromProperties(graphRef) {
+      const targetGraph = graphRef || graph;
+      if (!targetGraph || !Array.isArray(targetGraph._nodes)) return;
+
+      const labelAliases = {
+        "Normalization Type": "norm_type",
+        "N Columns": "n_cols",
+        Seed: "random_state",
+      };
+
+      const toSnake = (text) =>
+        String(text || "")
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "_")
+          .replace(/^_+|_+$/g, "");
+
+      for (const node of targetGraph._nodes) {
+        if (!node || !node.widgets || !node.properties) continue;
+
+        if (typeof node.syncPropertiesToWidgets === "function") {
+          node.syncPropertiesToWidgets();
+          continue;
+        }
+
+        for (const widget of node.widgets) {
+          const propertyKey =
+            widget?.linkedProperty ||
+            widget?.options?.property ||
+            labelAliases[widget?.name] ||
+            toSnake(widget?.name);
+
+          if (!propertyKey || !(propertyKey in node.properties)) continue;
+          const value = node.properties[propertyKey];
+
+          if (Array.isArray(value) && widget.type === "text") {
+            widget.value = value.join(", ");
+          } else {
+            widget.value = value;
+          }
+        }
+
+        if (typeof node.setDirtyCanvas === "function") {
+          node.setDirtyCanvas(true, true);
+        }
+      }
+
+      if (canvas) {
+        canvas.dirty_canvas = true;
+        canvas.dirty_bgcanvas = true;
+      }
+    }
+    window.syncGraphWidgetsFromProperties = syncGraphWidgetsFromProperties;
+
+
+
+    // Throttled autosave
+    let lastSnapshot = "";
+    function snapshotAndMaybeSave() {
+      try {
+        const snap = JSON.stringify(graph.serialize());
+        if (snap !== lastSnapshot) {
+          lastSnapshot = snap;
+          saveGraphToLocalStorage();
+        }
+      } catch { }
+    }
+    setInterval(snapshotAndMaybeSave, 1000);
+    graph.onNodeAdded = snapshotAndMaybeSave;
+    graph.onNodeRemoved = snapshotAndMaybeSave;
+    graph.onAfterExecute = snapshotAndMaybeSave;
+    if ("onConnectionChange" in graph) graph.onConnectionChange = snapshotAndMaybeSave;
+    window.addEventListener("beforeunload", saveGraphToLocalStorage);
+
+    const workflowBrowser = new WorkflowBrowser({
+      graph,
+      canvas,
+      setStatus,
+      saveWorkingGraph: saveGraphToLocalStorage,
+      autosaveGraphKey: STORAGE_KEY_GRAPH,
+      autosaveViewKey: STORAGE_KEY_VIEW,
+      templatesManifestUrl: "/static/workflows/index.json",
+      templatesBaseUrl: "/static/workflows/",
+    });
+
+    document.getElementById("workflows").addEventListener("click", () => {
+      workflowBrowser.open();
+    });
+    document.getElementById("saveAs").addEventListener("click", async () => {
+      await workflowBrowser.promptSaveAs();
+    });
+
+    // UI button handlers
+    const runner = new GraphRunner(window.graph || graph);
+
+    document.getElementById("execute").addEventListener("click", async () => {
+      try {
+        setStatus("running...");
+        await runner.runUntilSettled(50);
+        // await runner.runDirtyUntilSettled(50);
+        setStatus("stepped once");
+        saveGraphToLocalStorage();
+      } catch (e) {
+        console.error(e);
+        setStatus("run error");
+      }
+    });
+    document.getElementById("pause").addEventListener("click", () => {
+      graph.stop(); setStatus("stopped"); saveGraphToLocalStorage();
+    });
+    document.getElementById("stop").addEventListener("click", () => {
+      graph.stop();
+      if (
+        window.TrainerNodeShared &&
+        typeof window.TrainerNodeShared.abortInFlightTrainingRequests === "function"
+      ) {
+        window.TrainerNodeShared.abortInFlightTrainingRequests("Stopped from toolbar");
+      }
+      setStatus("stopped + cancelled");
+      saveGraphToLocalStorage();
+    });
+    document.getElementById("clear").addEventListener("click", () => {
+      graph.stop(); graph.clear(); setStatus("cleared"); saveGraphToLocalStorage();
+    });
+    document.getElementById("reset").addEventListener("click", () => {
+      graph.stop(); graph.clear(); resetLocalStorage(); initGraph(); setStatus("reset"); saveGraphToLocalStorage();
+    });
+
+    document.getElementById("export").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify(graph.serialize(), null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "litegraph-graph.json";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+
+    document.getElementById("import").addEventListener("click", () => {
+      document.getElementById("importFile").click();
+    });
+    document.getElementById("importFile").addEventListener("change", (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const json = JSON.parse(reader.result);
+          graph.stop(); graph.clear(); graph.configure(json);
+          syncGraphWidgetsFromProperties(graph);
+          saveGraphToLocalStorage();
+          setStatus("imported");
+        } catch (err) {
+          console.error("Import error:", err); setStatus("import error");
+        }
+      };
+      reader.readAsText(file);
+      e.target.value = "";
+    });
+
+    // Add keyboard event listener for deleting nodes
+    document.addEventListener("keydown", (event) => {
+      // Only act on Delete / Backspace
+      if (event.key !== "Delete" && event.key !== "Backspace") return;
+
+      // Ignore if typing into an input/textarea/contenteditable
+      const t = event.target;
+      if (
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.isContentEditable)
+      ) {
+        return;
+      }
+
+      // Prevent default browser nav/backspace behavior
+      event.preventDefault();
+
+      // Ensure the canvas & graph exist
+      if (!canvas || !canvas.graph) {
+        console.warn("Canvas or graph is not initialized.");
+        return;
+      }
+
+      // LiteGraph keeps selection here:
+      const selected = canvas.selected_nodes || null;
+
+      if (selected && Object.keys(selected).length > 0) {
+        // Remove all selected nodes
+        for (const id of Object.keys(selected)) {
+          const node = selected[id];
+          if (node) {
+            graph.remove(node);
+          }
+        }
+        // Clear selection to avoid stale references
+        canvas.selected_nodes = {};
+        canvas.selected_group = null;
+        setStatus("node(s) deleted");
+        saveGraphToLocalStorage();
+        canvas.dirty_canvas = true;
+        canvas.dirty_bgcanvas = true;
+      } else {
+        setStatus("no nodes selected");
+      }
+    });
+
+    // const canvasEl = document.getElementById("mycanvas");
+    // function resize() { canvas.resize(canvasEl.clientWidth, canvasEl.clientHeight); }
+    // window.addEventListener("resize", resize);
+    // resize();
+
+    (function setupDockConsole() {
+      const btn = document.getElementById("consoleToggle");
+      const dock = document.getElementById("dockConsole");
+      const body = document.getElementById("dockConsoleBody");
+      const clearBtn = document.getElementById("dockConsoleClear");
+      const closeBtn = document.getElementById("dockConsoleClose");
+      const handle = dock.querySelector(".resize-handle");
+
+      let isOpen = false;
+      let maxLines = 800;
+
+      function setDockWidth(px) {
+        const w = Math.max(260, Math.min(px, Math.floor(window.innerWidth * 0.8)));
+        dock.style.width = w + "px";
+      }
+
+      function openDock() {
+        isOpen = true;
+        dock.classList.add("open");
+        dock.setAttribute("aria-hidden", "false");
+        // initialize width if not set
+        const w = dock.getBoundingClientRect().width || 420;
+        // document.documentElement.style.setProperty("--dockRightW", w + "px");
+        // resize();
+        startServerStream();
+      }
+
+      function closeDock() {
+        isOpen = false;
+        dock.classList.remove("open");
+        dock.setAttribute("aria-hidden", "true");
+        // document.documentElement.style.setProperty("--dockRightW", "0px");
+        // resize();
+      }
+
+      function toggleDock() {
+        isOpen ? closeDock() : openDock();
+      }
+
+      btn?.addEventListener("click", toggleDock);
+      closeBtn?.addEventListener("click", closeDock);
+
+      clearBtn?.addEventListener("click", () => {
+        body.textContent = "";
+      });
+
+      // ----- resize by dragging the left handle -----
+      let resizing = false;
+      let startX = 0;
+      let startW = 420;
+
+      handle.addEventListener("pointerdown", (e) => {
+        resizing = true;
+        startX = e.clientX;
+        startW = dock.getBoundingClientRect().width;
+        handle.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      });
+
+      handle.addEventListener("pointermove", (e) => {
+        if (!resizing) return;
+        // dragging left/right changes width; panel is pinned to right
+        const dx = startX - e.clientX; // move left increases width
+        setDockWidth(startW + dx);
+      });
+
+      handle.addEventListener("pointerup", () => { resizing = false; });
+      handle.addEventListener("pointercancel", () => { resizing = false; });
+
+      // ----- mirror console output -----
+      const orig = {
+        log: console.log.bind(console),
+        warn: console.warn.bind(console),
+        error: console.error.bind(console),
+      };
+
+      function fmt(arg) {
+        if (typeof arg === "string") return arg;
+        try { return JSON.stringify(arg); } catch { return String(arg); }
+      }
+
+      function atBottom(el) {
+        return (el.scrollHeight - el.scrollTop - el.clientHeight) < 24;
+      }
+
+      function appendLine(level, args) {
+        const wasAtBottom = atBottom(body);
+        const t = new Date().toLocaleTimeString();
+        const line = `[${t}] ${level}: ${args.map(fmt).join(" ")}`;
+
+        const div = document.createElement("div");
+        div.className = "line";
+        div.textContent = line;
+        body.appendChild(div);
+
+        // trim
+        while (body.childNodes.length > maxLines) body.removeChild(body.firstChild);
+
+        if (wasAtBottom) body.scrollTop = body.scrollHeight;
+      }
+
+      let serverES = null;
+
+      function startServerStream() {
+        if (serverES) return;
+        serverES = new EventSource("/logs/stream");
+        serverES.onmessage = (e) => appendLine("SRV", [e.data]);
+        serverES.onerror = () => {
+          appendLine("SRV", ["(server stream disconnected)"]);
+          // EventSource auto-retries by default
+        };
+      }
+
+
+      console.log = (...args) => { appendLine("LOG", args); orig.log(...args); };
+      console.warn = (...args) => { appendLine("WARN", args); orig.warn(...args); };
+      console.error = (...args) => { appendLine("ERR", args); orig.error(...args); };
+
+      window.addEventListener("error", (e) => appendLine("ERR", [e.message || e.error || "Window error"]));
+      window.addEventListener("unhandledrejection", (e) => appendLine("ERR", ["Unhandled rejection:", e.reason]));
+
+      // optional: start closed but keep width reasonable
+      setDockWidth(420);
+    })();
+
+
+
+  </script>
+</body>
+
+</html>

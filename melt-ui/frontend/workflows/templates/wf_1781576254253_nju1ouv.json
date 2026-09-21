@@ -1,0 +1,457 @@
+{
+  "id": "wf_1781576254253_nju1ouv",
+  "source": "user",
+  "name": "Temporal Forecasting - Simple",
+  "description": "Create synthetic temporal data for forecasting task, train a LSTM, and evaluate its performance on future data",
+  "tags": [],
+  "createdAt": "2026-06-16T02:17:34.265034+00:00",
+  "updatedAt": "2026-06-16T02:17:34.265052+00:00",
+  "graph": {
+    "last_node_id": 10,
+    "last_link_id": 15,
+    "nodes": [
+      {
+        "id": 2,
+        "type": "MELT/Plot/XYPlot",
+        "pos": {
+          "0": 124,
+          "1": 361,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 0
+        },
+        "size": [
+          500,
+          500
+        ],
+        "flags": {},
+        "order": 1,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "x",
+            "type": "array",
+            "link": 1
+          },
+          {
+            "name": "y",
+            "type": "array",
+            "link": 2
+          }
+        ],
+        "outputs": [
+          {
+            "name": "image",
+            "type": "string",
+            "links": null
+          }
+        ],
+        "properties": {
+          "fig_width": 10,
+          "fig_height": 6,
+          "auto_update": true,
+          "endpoint": "/plot_xy",
+          "n_cols": 3,
+          "size": [
+            500,
+            500
+          ]
+        }
+      },
+      {
+        "id": 1,
+        "type": "MELT/Data/TimeSeriesRegressionDataNode",
+        "pos": {
+          "0": 201,
+          "1": 42,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 0
+        },
+        "size": [
+          250,
+          230
+        ],
+        "flags": {},
+        "order": 0,
+        "mode": 0,
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "x",
+            "type": "array",
+            "links": [
+              1,
+              3
+            ],
+            "slot_index": 0
+          },
+          {
+            "name": "y",
+            "type": "array",
+            "links": [
+              2,
+              4
+            ],
+            "slot_index": 1
+          },
+          {
+            "name": "shape",
+            "type": "object",
+            "links": null
+          }
+        ],
+        "properties": {
+          "n_samples": 2000,
+          "n_features": 4,
+          "season_period": 24,
+          "trend_strength": 0.001,
+          "noise": 0.05,
+          "random_state": 42,
+          "endpoint": "/time_series_regression_data"
+        }
+      },
+      {
+        "id": 6,
+        "type": "MELT/Plot/HistoryPlot",
+        "pos": {
+          "0": 1204,
+          "1": 812,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 0
+        },
+        "size": [
+          500,
+          500
+        ],
+        "flags": {},
+        "order": 4,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "history",
+            "type": "object",
+            "link": 9
+          }
+        ],
+        "outputs": [
+          {
+            "name": "image",
+            "type": "string",
+            "links": null
+          }
+        ],
+        "properties": {
+          "fig_width": 10,
+          "fig_height": 6,
+          "auto_update": true,
+          "endpoint": "/plot_history",
+          "size": [
+            500,
+            500
+          ]
+        }
+      },
+      {
+        "id": 5,
+        "type": "MELT/Plot/TemporalEvaluationPlot",
+        "pos": {
+          "0": 1220,
+          "1": -8,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 0
+        },
+        "size": [
+          1427.7788685566588,
+          737.9796090132481
+        ],
+        "flags": {},
+        "order": 3,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "model",
+            "type": "object",
+            "link": 5
+          },
+          {
+            "name": "x_data",
+            "type": "object",
+            "link": 6
+          },
+          {
+            "name": "y_data",
+            "type": "object",
+            "link": 7
+          },
+          {
+            "name": "y_normalizer",
+            "type": "object",
+            "link": 8
+          }
+        ],
+        "outputs": [
+          {
+            "name": "image",
+            "type": "string",
+            "links": null
+          }
+        ],
+        "title": "Plot Temporal Evaluation Metrics",
+        "properties": {
+          "fig_width": 10,
+          "fig_height": 6,
+          "auto_update": true,
+          "endpoint": "/evaluate_temporal_supervised_model",
+          "unnormalize": true,
+          "output_index": 0,
+          "show_train": true,
+          "show_val": true,
+          "show_test": true,
+          "show_uncertainty": true,
+          "size": [
+            1100,
+            550
+          ]
+        }
+      },
+      {
+        "id": 4,
+        "type": "MELT/Trainer/MELTTemporalSupervisedTrainerNode",
+        "pos": {
+          "0": 744,
+          "1": 17,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 0
+        },
+        "size": [
+          333.0818685566594,
+          774
+        ],
+        "flags": {},
+        "order": 2,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "x",
+            "type": "array",
+            "link": 3
+          },
+          {
+            "name": "y",
+            "type": "array",
+            "link": 4
+          },
+          {
+            "name": "lengths",
+            "type": "array",
+            "link": null
+          },
+          {
+            "name": "hyperparameters",
+            "type": "object",
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "name": "model",
+            "type": "object",
+            "links": [
+              5
+            ],
+            "slot_index": 0
+          },
+          {
+            "name": "x_data",
+            "type": "object",
+            "links": null
+          },
+          {
+            "name": "y_data",
+            "type": "object",
+            "links": null
+          },
+          {
+            "name": "x_data_scaled",
+            "type": "object",
+            "links": [
+              6
+            ],
+            "slot_index": 3
+          },
+          {
+            "name": "y_data_scaled",
+            "type": "object",
+            "links": [
+              7
+            ],
+            "slot_index": 4
+          },
+          {
+            "name": "x_normalizer",
+            "type": "object",
+            "links": null
+          },
+          {
+            "name": "y_normalizer",
+            "type": "object",
+            "links": [
+              8
+            ],
+            "slot_index": 6
+          },
+          {
+            "name": "history",
+            "type": "object",
+            "links": [
+              9
+            ],
+            "slot_index": 7
+          }
+        ],
+        "properties": {
+          "val_size": 0.1,
+          "test_size": 0.1,
+          "norm_type": "standard",
+          "random_state": 42,
+          "shuffle": true,
+          "batch_size": 32,
+          "num_epochs": 100,
+          "loss_function": "mse",
+          "optimizer": "Adam",
+          "learning_rate": 0.001,
+          "dropout_rate": 0,
+          "activation_function": "relu",
+          "output_activation": "linear",
+          "width": 8,
+          "depth": 1,
+          "rnn_type": "lstm",
+          "head_type": "last",
+          "l1_reg": 0,
+          "l2_reg": 0,
+          "lr_scheduler": "ReduceLROnPlateau",
+          "num_mixtures": 1,
+          "seq_length": 60,
+          "seq_to_one": true,
+          "suffix_crop": false,
+          "suffix_crop_min_length": 32,
+          "endpoint": "/melt_temporal_supervised_trainer"
+        }
+      }
+    ],
+    "links": [
+      [
+        1,
+        1,
+        0,
+        2,
+        0,
+        "array"
+      ],
+      [
+        2,
+        1,
+        1,
+        2,
+        1,
+        "array"
+      ],
+      [
+        3,
+        1,
+        0,
+        4,
+        0,
+        "array"
+      ],
+      [
+        4,
+        1,
+        1,
+        4,
+        1,
+        "array"
+      ],
+      [
+        5,
+        4,
+        0,
+        5,
+        0,
+        "object"
+      ],
+      [
+        6,
+        4,
+        3,
+        5,
+        1,
+        "object"
+      ],
+      [
+        7,
+        4,
+        4,
+        5,
+        2,
+        "object"
+      ],
+      [
+        8,
+        4,
+        6,
+        5,
+        3,
+        "object"
+      ],
+      [
+        9,
+        4,
+        7,
+        6,
+        0,
+        "object"
+      ]
+    ],
+    "groups": [],
+    "config": {},
+    "extra": {},
+    "version": 0.4
+  },
+  "view": {
+    "scale": 0.826446280991736,
+    "offset": {
+      "0": 162.5791742411887,
+      "1": 168.50192079351515
+    }
+  }
+}

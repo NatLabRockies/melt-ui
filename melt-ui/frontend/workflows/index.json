@@ -1,0 +1,65 @@
+{
+  "templates": [
+    {
+      "id": "wf_1781564553143_787a331",
+      "name": "Multivariate Regression Training - Simple",
+      "description": "Create synthetic data for multivariate regression, train a model, evaluate its performance, and save the model for later use.",
+      "category": "Supervised Learning",
+      "tags": [
+        "Regression",
+        "Model Training",
+        "Data Visualization"
+      ],
+      "file": "templates/wf_1781564553143_787a331.json"
+    },
+    {
+      "id": "wf_1781574973910_gxurz74",
+      "name": "Multivariate Regression Training - Hyperparameter Optimization",
+      "description": "Same as the Simple workflow, but with added hyperparameter optimization to improve model results.",
+      "category": "Supervised Learning",
+      "tags": [
+        "Regression",
+        "Model Training",
+        "Hyperparameter Optimization"
+      ],
+      "file": "templates/wf_1781574973910_gxurz74.json"
+    },
+    {
+      "id": "wf_1781576254253_nju1ouv",
+      "name": "Temporal Forecasting - Simple",
+      "description": "Create synthetic temporal data for forecasting task, train a LSTM, and evaluate its performance on future data",
+      "category": "Supervised Learning",
+      "tags": [
+        "Time Series",
+        "Forecasting",
+        "Model Training"
+      ],
+      "file": "templates/wf_1781576254253_nju1ouv.json"
+    },
+    {
+      "id": "wf_1781576039184_68hqomt",
+      "name": "Temporal Forecasting - Hyperparameter Optimization",
+      "description": "Same as the Simple workflow, but with added hyperparameter optimization to improve model results.",
+      "category": "Supervised Learning",
+      "tags": [
+        "Time Series",
+        "Forecasting",
+        "Model Training",
+        "Hyperparameter Optimization"
+      ],
+      "file": "templates/wf_1781576039184_68hqomt.json"
+    },
+    {
+      "id": "wf_1781576644318_hrdhun3",
+      "name": "Variational Auto Encoder - Simple",
+      "description": "Create synthetic cluster data for VAE training, train model, and evaluate.",
+      "category": "Unsupervised Learning",
+      "tags": [
+        "VAE",
+        "Model Training",
+        "Data Visualization"
+      ],
+      "file": "templates/wf_1781576644318_hrdhun3.json"
+    }
+  ]
+}

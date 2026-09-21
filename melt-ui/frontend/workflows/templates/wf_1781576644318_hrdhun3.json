@@ -1,0 +1,838 @@
+{
+  "id": "wf_1781576644318_hrdhun3",
+  "source": "user",
+  "name": "Variational Auto Encoder - Simple",
+  "description": "Create synthetic cluster data for VAE training, train model, and evaluate.",
+  "tags": [],
+  "createdAt": "2026-06-16T02:24:04.333680+00:00",
+  "updatedAt": "2026-06-16T02:24:04.333709+00:00",
+  "graph": {
+    "last_node_id": 16,
+    "last_link_id": 24,
+    "nodes": [
+      {
+        "id": 8,
+        "type": "MELT/Utils/Reroute",
+        "pos": [
+          940,
+          -246
+        ],
+        "size": [
+          75,
+          30
+        ],
+        "flags": {},
+        "order": 7,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "in",
+            "type": 0,
+            "link": 12
+          }
+        ],
+        "outputs": [
+          {
+            "name": "out",
+            "type": 0,
+            "links": [
+              13,
+              14
+            ],
+            "slot_index": 0
+          }
+        ],
+        "properties": {}
+      },
+      {
+        "id": 7,
+        "type": "MELT/Utils/Reroute",
+        "pos": [
+          447,
+          -251
+        ],
+        "size": [
+          75,
+          30
+        ],
+        "flags": {},
+        "order": 2,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "in",
+            "type": 0,
+            "link": 11
+          }
+        ],
+        "outputs": [
+          {
+            "name": "out",
+            "type": 0,
+            "links": [
+              12
+            ],
+            "slot_index": 0
+          }
+        ],
+        "properties": {}
+      },
+      {
+        "id": 10,
+        "type": "MELT/Utils/Reroute",
+        "pos": [
+          444,
+          -181
+        ],
+        "size": [
+          75,
+          30
+        ],
+        "flags": {},
+        "order": 4,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "in",
+            "type": 0,
+            "link": 16
+          }
+        ],
+        "outputs": [
+          {
+            "name": "out",
+            "type": 0,
+            "links": [
+              17
+            ],
+            "slot_index": 0
+          }
+        ],
+        "properties": {}
+      },
+      {
+        "id": 11,
+        "type": "MELT/Utils/Reroute",
+        "pos": [
+          922,
+          -178
+        ],
+        "size": [
+          75,
+          30
+        ],
+        "flags": {},
+        "order": 8,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "in",
+            "type": 0,
+            "link": 17
+          }
+        ],
+        "outputs": [
+          {
+            "name": "out",
+            "type": 0,
+            "links": [
+              18,
+              19
+            ],
+            "slot_index": 0
+          }
+        ],
+        "properties": {}
+      },
+      {
+        "id": 13,
+        "type": "MELT/Utils/Reroute",
+        "pos": [
+          931,
+          -86
+        ],
+        "size": [
+          75,
+          30
+        ],
+        "flags": {},
+        "order": 5,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "in",
+            "type": 0,
+            "link": 21
+          }
+        ],
+        "outputs": [
+          {
+            "name": "out",
+            "type": 0,
+            "links": [
+              22,
+              23
+            ],
+            "slot_index": 0
+          }
+        ],
+        "properties": {}
+      },
+      {
+        "id": 9,
+        "type": "MELT/Utils/Reroute",
+        "pos": [
+          1642,
+          -240
+        ],
+        "size": [
+          75,
+          30
+        ],
+        "flags": {},
+        "order": 10,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "in",
+            "type": 0,
+            "link": 14
+          }
+        ],
+        "outputs": [
+          {
+            "name": "out",
+            "type": 0,
+            "links": [
+              15
+            ],
+            "slot_index": 0
+          }
+        ],
+        "properties": {}
+      },
+      {
+        "id": 12,
+        "type": "MELT/Utils/Reroute",
+        "pos": [
+          1648,
+          -167
+        ],
+        "size": [
+          75,
+          30
+        ],
+        "flags": {},
+        "order": 12,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "in",
+            "type": 0,
+            "link": 19
+          }
+        ],
+        "outputs": [
+          {
+            "name": "out",
+            "type": 0,
+            "links": [
+              20
+            ],
+            "slot_index": 0
+          }
+        ],
+        "properties": {}
+      },
+      {
+        "id": 14,
+        "type": "MELT/Utils/Reroute",
+        "pos": [
+          1650,
+          -93
+        ],
+        "size": [
+          75,
+          30
+        ],
+        "flags": {},
+        "order": 9,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "in",
+            "type": 0,
+            "link": 23
+          }
+        ],
+        "outputs": [
+          {
+            "name": "out",
+            "type": 0,
+            "links": [
+              24
+            ],
+            "slot_index": 0
+          }
+        ],
+        "properties": {}
+      },
+      {
+        "id": 6,
+        "type": "MELT/Plot/VAELatentClusterPlot",
+        "pos": {
+          "0": 1808,
+          "1": 22,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 0
+        },
+        "size": [
+          581.041261049817,
+          668.9092143551127
+        ],
+        "flags": {},
+        "order": 13,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "model",
+            "type": "object",
+            "link": 24
+          },
+          {
+            "name": "x",
+            "type": "array",
+            "link": 15
+          },
+          {
+            "name": "labels",
+            "type": "array",
+            "link": 20
+          }
+        ],
+        "outputs": [
+          {
+            "name": "image",
+            "type": "string",
+            "links": null
+          }
+        ],
+        "properties": {
+          "fig_width": 10,
+          "fig_height": 6,
+          "auto_update": true,
+          "endpoint": "/plot_vae_latent_clusters",
+          "split": "train",
+          "latent_x": 0,
+          "latent_y": 1,
+          "alpha": 0.7,
+          "point_size": 18,
+          "size": [
+            500,
+            500
+          ]
+        }
+      },
+      {
+        "id": 4,
+        "type": "MELT/Plot/VAEReconstructionPlot",
+        "pos": {
+          "0": 1085,
+          "1": 28,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 0
+        },
+        "size": [
+          655.4412610498171,
+          693.2092143551127
+        ],
+        "flags": {},
+        "order": 11,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "model",
+            "type": "object",
+            "link": 22
+          },
+          {
+            "name": "x",
+            "type": "array",
+            "link": 13
+          },
+          {
+            "name": "labels",
+            "type": "array",
+            "link": 18
+          }
+        ],
+        "outputs": [
+          {
+            "name": "image",
+            "type": "string",
+            "links": null
+          }
+        ],
+        "properties": {
+          "fig_width": 10,
+          "fig_height": 6,
+          "auto_update": true,
+          "endpoint": "/plot_vae_reconstruction",
+          "split": "train",
+          "feature_x": 0,
+          "feature_y": 1,
+          "alpha": 0.7,
+          "point_size": 18,
+          "size": [
+            600,
+            500
+          ]
+        }
+      },
+      {
+        "id": 3,
+        "type": "MELT/Plot/VAEInitialClusterPlot",
+        "pos": {
+          "0": 7,
+          "1": 354,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 0
+        },
+        "size": [
+          502.3412610498169,
+          590.8092143551127
+        ],
+        "flags": {},
+        "order": 3,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "x",
+            "type": "array",
+            "link": 2
+          },
+          {
+            "name": "labels",
+            "type": "array",
+            "link": 3
+          }
+        ],
+        "outputs": [
+          {
+            "name": "image",
+            "type": "string",
+            "links": null
+          }
+        ],
+        "properties": {
+          "fig_width": 10,
+          "fig_height": 6,
+          "auto_update": true,
+          "endpoint": "/plot_vae_initial_clusters",
+          "split": "train",
+          "feature_x": 0,
+          "feature_y": 1,
+          "alpha": 0.7,
+          "point_size": 18,
+          "size": [
+            500,
+            500
+          ]
+        }
+      },
+      {
+        "id": 2,
+        "type": "MELT/Data/VAESyntheticDataNode",
+        "pos": {
+          "0": 32,
+          "1": 48,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 0
+        },
+        "size": [
+          230,
+          210
+        ],
+        "flags": {},
+        "order": 0,
+        "mode": 0,
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "x",
+            "type": "array",
+            "links": [
+              1,
+              2,
+              11
+            ],
+            "slot_index": 0
+          },
+          {
+            "name": "labels",
+            "type": "array",
+            "links": [
+              3,
+              16
+            ],
+            "slot_index": 1
+          },
+          {
+            "name": "shape",
+            "type": "object",
+            "links": null
+          }
+        ],
+        "properties": {
+          "n_samples": 2000,
+          "n_features": 2,
+          "centers": 5,
+          "cluster_std": 1,
+          "random_state": 42,
+          "endpoint": "/vae_synthetic_data"
+        }
+      },
+      {
+        "id": 1,
+        "type": "MELT/Trainer/MELTVAETrainerNode",
+        "pos": {
+          "0": 610,
+          "1": 41,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 0
+        },
+        "size": [
+          302.94126104981694,
+          678
+        ],
+        "flags": {},
+        "order": 1,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "x",
+            "type": "array",
+            "link": 1
+          },
+          {
+            "name": "hyperparameters",
+            "type": "object",
+            "link": null
+          }
+        ],
+        "outputs": [
+          {
+            "name": "model",
+            "type": "object",
+            "links": [
+              21
+            ],
+            "slot_index": 0
+          },
+          {
+            "name": "x_data",
+            "type": "object",
+            "links": null
+          },
+          {
+            "name": "y_data",
+            "type": "object",
+            "links": null
+          },
+          {
+            "name": "x_data_scaled",
+            "type": "object",
+            "links": null
+          },
+          {
+            "name": "y_data_scaled",
+            "type": "object",
+            "links": null
+          },
+          {
+            "name": "x_normalizer",
+            "type": "object",
+            "links": null
+          },
+          {
+            "name": "y_normalizer",
+            "type": "object",
+            "links": null
+          },
+          {
+            "name": "history",
+            "type": "object",
+            "links": [
+              7
+            ],
+            "slot_index": 7
+          }
+        ],
+        "properties": {
+          "val_size": 0.1,
+          "test_size": 0.1,
+          "norm_type": "none",
+          "random_state": 42,
+          "shuffle": true,
+          "batch_size": 32,
+          "num_epochs": 100,
+          "loss_function": "mse",
+          "optimizer": "Adam",
+          "learning_rate": 0.001,
+          "dropout_rate": 0,
+          "batch_norm": false,
+          "activation_function": "relu",
+          "output_activation": "linear",
+          "latent_dims": 8,
+          "encoder_node_list": [
+            32,
+            16
+          ],
+          "decoder_node_list": [
+            16,
+            32
+          ],
+          "l1_reg": 0,
+          "l2_reg": 0.001,
+          "lr_scheduler": "ReduceLROnPlateau",
+          "num_mixtures": 5,
+          "endpoint": "/melt_vae_trainer"
+        }
+      },
+      {
+        "id": 5,
+        "type": "MELT/Plot/HistoryPlot",
+        "pos": {
+          "0": 943,
+          "1": 787,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 0
+        },
+        "size": [
+          500,
+          500
+        ],
+        "flags": {},
+        "order": 6,
+        "mode": 0,
+        "inputs": [
+          {
+            "name": "history",
+            "type": "object",
+            "link": 7
+          }
+        ],
+        "outputs": [
+          {
+            "name": "image",
+            "type": "string",
+            "links": null
+          }
+        ],
+        "properties": {
+          "fig_width": 10,
+          "fig_height": 6,
+          "auto_update": true,
+          "endpoint": "/plot_history",
+          "size": [
+            500,
+            500
+          ]
+        }
+      }
+    ],
+    "links": [
+      [
+        1,
+        2,
+        0,
+        1,
+        0,
+        "array"
+      ],
+      [
+        2,
+        2,
+        0,
+        3,
+        0,
+        "array"
+      ],
+      [
+        3,
+        2,
+        1,
+        3,
+        1,
+        "array"
+      ],
+      [
+        7,
+        1,
+        7,
+        5,
+        0,
+        "object"
+      ],
+      [
+        11,
+        2,
+        0,
+        7,
+        0,
+        "array"
+      ],
+      [
+        12,
+        7,
+        0,
+        8,
+        0,
+        0
+      ],
+      [
+        13,
+        8,
+        0,
+        4,
+        1,
+        "array"
+      ],
+      [
+        14,
+        8,
+        0,
+        9,
+        0,
+        0
+      ],
+      [
+        15,
+        9,
+        0,
+        6,
+        1,
+        "array"
+      ],
+      [
+        16,
+        2,
+        1,
+        10,
+        0,
+        "array"
+      ],
+      [
+        17,
+        10,
+        0,
+        11,
+        0,
+        0
+      ],
+      [
+        18,
+        11,
+        0,
+        4,
+        2,
+        "array"
+      ],
+      [
+        19,
+        11,
+        0,
+        12,
+        0,
+        0
+      ],
+      [
+        20,
+        12,
+        0,
+        6,
+        2,
+        "array"
+      ],
+      [
+        21,
+        1,
+        0,
+        13,
+        0,
+        "object"
+      ],
+      [
+        22,
+        13,
+        0,
+        4,
+        0,
+        "object"
+      ],
+      [
+        23,
+        13,
+        0,
+        14,
+        0,
+        0
+      ],
+      [
+        24,
+        14,
+        0,
+        6,
+        0,
+        "object"
+      ]
+    ],
+    "groups": [],
+    "config": {},
+    "extra": {},
+    "version": 0.4
+  },
+  "view": {
+    "scale": 0.8264462809917354,
+    "offset": {
+      "0": 304.9918789501833,
+      "1": 277.0607856448871
+    }
+  }
+}

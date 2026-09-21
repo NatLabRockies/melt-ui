@@ -1,0 +1,25 @@
+name: melt-ui
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.11
+  - nodejs
+  - pip
+  - pip:
+    # - git+https://github.com/NREL/tf-melt.git
+    - git+https://github.com/NREL/pt-melt.git
+    - numpy
+    - pandas
+    - scikit-learn
+    - torch
+    - matplotlib
+    - flask
+    - fastapi[standard]
+    - pydantic
+    - seaborn
+    - openpyxl
+    - safetensors
+    - pillow
+    - transformers
+    - supervision
