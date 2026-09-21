@@ -17,7 +17,11 @@ from safetensors import safe_open
 from safetensors.torch import load_file as safetensors_load_file
 from safetensors.torch import save_file as safetensors_save_file
 
+from .path_access import grant_file_access, resolve_read_file
+
 router = APIRouter()
+
+SAVED_MODELS_DIR = Path(__file__).resolve().parents[1] / "saved_models"
 
 
 async def _maybe_await(x):
@@ -873,22 +877,21 @@ async def load_model(request: Request):
 
     print(f"Path in: {path_in}")
 
-    if path_in:
-        path = Path(str(path_in))
-        if not path.is_absolute():
-            # interpret relative paths as relative to CWD
-            path = (Path.cwd() / path).resolve()
-        else:
-            path = path.resolve()
-    # elif filename:
-    #     path = _resolve_path(str(save_dir), str(filename))
-    else:
+    if not path_in:
         return JSONResponse(
             status_code=400,
-            content={
-                "error": "Provide either 'path' (or 'file_path') or 'filename' (+ optional save_dir)."
-            },
+            content={"error": "Provide 'path' or 'file_path'."},
         )
+
+    try:
+        path = resolve_read_file(
+            request.app,
+            str(path_in),
+            body.get("path_grant"),
+            managed_roots=(SAVED_MODELS_DIR,),
+        )
+    except PermissionError as exc:
+        return JSONResponse(status_code=403, content={"error": str(exc)})
 
     if not path.exists() or not path.is_file():
         return JSONResponse(
@@ -979,9 +982,16 @@ async def load_model(request: Request):
     scaler_payload = None
 
     if scaler_info_path:
-        scaler_path = Path(str(scaler_info_path)).expanduser()
-        if not scaler_path.is_absolute():
-            scaler_path = (Path.cwd() / scaler_path).resolve()
+        try:
+            scaler_path = resolve_read_file(
+                request.app,
+                str(scaler_info_path),
+                body.get("scaler_info_grant"),
+                managed_roots=(SAVED_MODELS_DIR,),
+            )
+        except PermissionError as exc:
+            return JSONResponse(status_code=403, content={"error": str(exc)})
+
         if scaler_path.exists() and scaler_path.is_file():
             try:
                 scaler_payload = _parse_scaler_info_text(scaler_path.read_text())
@@ -993,6 +1003,16 @@ async def load_model(request: Request):
             path.with_name(f"{path.stem}_scaler_info.txt"),
         ]
         for candidate in sidecar_candidates:
+            try:
+                candidate = resolve_read_file(
+                    request.app,
+                    candidate,
+                    body.get("scaler_info_grant"),
+                    managed_roots=(SAVED_MODELS_DIR,),
+                )
+            except PermissionError:
+                continue
+
             if candidate.exists() and candidate.is_file():
                 try:
                     scaler_payload = _parse_scaler_info_text(candidate.read_text())
@@ -1131,7 +1151,20 @@ async def browse_file(request: Request):
         selected = stdout.decode("utf-8", errors="replace").strip()
         if not selected:
             return JSONResponse(content={"path": None, "cancelled": True})
-        return JSONResponse(content={"path": selected, "cancelled": False})
+
+        try:
+            selected_path = Path(selected).expanduser().resolve()
+            grant_id = grant_file_access(request.app, selected_path)
+        except ValueError as exc:
+            return JSONResponse(status_code=400, content={"error": str(exc)})
+
+        return JSONResponse(
+            content={
+                "path": str(selected_path),
+                "grant_id": grant_id,
+                "cancelled": False,
+            }
+        )
     except TimeoutError:
         return JSONResponse(
             status_code=408, content={"error": "File dialog timed out."}

@@ -9,6 +9,9 @@ class SAMLoadImageNode extends AsyncMultiOutputNodeBase {
     this.addProperty("path", "", "string");
     this.addProperty("endpoint", "/sam_load_image", "string");
 
+    // Runtime-only authorization for a file explicitly selected by the user.
+    this._pathGrant = null;
+
     this._pathWidget = this.addTextPropertyWidget("Image Path", "path");
 
     this.addWidget("button", "Browse Image...", null, () => {
@@ -18,9 +21,10 @@ class SAMLoadImageNode extends AsyncMultiOutputNodeBase {
           ["Image files", "*.png *.jpg *.jpeg *.webp *.bmp"],
           ["All files", "*.*"],
         ],
-        (p) => {
+        (p, grantId) => {
           const prev = this.properties.path;
           this.properties.path = p;
+          this._pathGrant = grantId;
           if (this._pathWidget) this._pathWidget.value = p;
           if (p !== prev && typeof this.onPropertyChanged === "function") {
             this.onPropertyChanged("path", p, prev);
@@ -44,7 +48,7 @@ class SAMLoadImageNode extends AsyncMultiOutputNodeBase {
     })
       .then((r) => r.json())
       .then((j) => {
-        if (j && j.path) callback(j.path);
+        if (j && j.path) callback(j.path, j.grant_id || null);
       })
       .catch((e) => console.error("Browse image error:", e));
   }
@@ -59,7 +63,10 @@ class SAMLoadImageNode extends AsyncMultiOutputNodeBase {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: this.properties.path }),
+        body: JSON.stringify({
+          path: this.properties.path,
+          path_grant: this._pathGrant,
+        }),
       },
     );
 

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 import io
-import os
 import uuid
 from typing import Any
 
@@ -10,6 +9,8 @@ import numpy as np
 import torch
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
+
+from .path_access import resolve_read_file
 
 router = APIRouter()
 
@@ -461,18 +462,28 @@ async def sam_load_image(request: Request):
         ) from exc
 
     if path:
-        if not os.path.exists(path):
+        try:
+            image_path = resolve_read_file(
+                request.app,
+                path,
+                body.get("path_grant"),
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+        if not image_path.exists() or not image_path.is_file():
             raise HTTPException(
-                status_code=400, detail=f"Image path does not exist: {path}"
+                status_code=400,
+                detail=f"Image path does not exist: {image_path}",
             )
         try:
-            img = Image.open(path).convert("RGB")
+            img = Image.open(image_path).convert("RGB")
         except Exception as exc:
             raise HTTPException(
                 status_code=400, detail=f"Failed to open image: {exc}"
             ) from exc
         uri = _encode_jpeg_to_data_uri(img)
-        source_path = path
+        source_path = str(image_path)
     else:
         img = _decode_data_uri_image(str(image_data))
         uri = _encode_jpeg_to_data_uri(img)

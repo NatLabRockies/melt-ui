@@ -145,6 +145,10 @@ class LoadModelNode extends AsyncMultiOutputNodeBase {
     // this.addProperty("model_id", "", "string");
     this.addProperty("endpoint", "/load_model", "string");
 
+    // File-access grants are runtime-only and intentionally not serialized.
+    this._pathGrant = null;
+    this._scalerInfoGrant = null;
+
     // Widgets
     this._pathWidget = this.addWidget(
       "text",
@@ -161,8 +165,9 @@ class LoadModelNode extends AsyncMultiOutputNodeBase {
           ["Safetensors files", "*.safetensors"],
           ["All files", "*.*"],
         ],
-        (p) => {
+        (p, grantId) => {
           this.properties.path = p;
+          this._pathGrant = grantId;
           if (this._pathWidget) this._pathWidget.value = p;
           if (this._runner) this._runner.invalidate();
         },
@@ -186,8 +191,9 @@ class LoadModelNode extends AsyncMultiOutputNodeBase {
           ["Text files", "*.txt"],
           ["All files", "*.*"],
         ],
-        (p) => {
+        (p, grantId) => {
           this.properties.scaler_info_path = p;
+          this._scalerInfoGrant = grantId;
           if (this._scalerInfoWidget) this._scalerInfoWidget.value = p;
           if (this._runner) this._runner.invalidate();
         },
@@ -247,7 +253,7 @@ class LoadModelNode extends AsyncMultiOutputNodeBase {
       .then((r) => r.json())
       .then((j) => {
         if (j && j.path) {
-          callback(j.path);
+          callback(j.path, j.grant_id || null);
           node.setDirtyCanvas(true, true);
         }
       })
@@ -264,12 +270,14 @@ class LoadModelNode extends AsyncMultiOutputNodeBase {
 
     const payload = {
       path: this.properties.path,
+      path_grant: this._pathGrant,
       strict: !!this.properties.strict,
       scaler_info_path:
         this.properties.scaler_info_path &&
         this.properties.scaler_info_path.trim().length > 0
           ? this.properties.scaler_info_path
           : null,
+      scaler_info_grant: this._scalerInfoGrant,
       auto_load_scaler_info: !!this.properties.auto_load_scaler_info,
       model_id:
         this.properties.model_id && this.properties.model_id.trim().length > 0
