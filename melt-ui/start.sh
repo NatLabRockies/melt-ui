@@ -1,3 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-uvicorn server:app --reload --port 8000
+HOST="${MELT_HOST:-127.0.0.1}"
+PORT="${MELT_PORT:-8000}"
+
+exec uvicorn server:app \
+  --reload \
+  --host "${HOST}" \
+  --port "${PORT}"

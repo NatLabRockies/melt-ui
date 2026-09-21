@@ -7,14 +7,12 @@ dependencies:
   - nodejs
   - pip
   - pip:
-    # - git+https://github.com/NREL/tf-melt.git
-    - git+https://github.com/NREL/pt-melt.git
+    - git+https://github.com/NatLabRockies/pt-melt.git
     - numpy
     - pandas
     - scikit-learn
     - torch
     - matplotlib
-    - flask
     - fastapi[standard]
     - pydantic
     - seaborn
