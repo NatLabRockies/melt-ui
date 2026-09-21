@@ -868,9 +868,8 @@ async def load_model(request: Request):
     scaler_info_path = body.get("scaler_info_path")
     auto_load_scaler_info = bool(body.get("auto_load_scaler_info", True))
 
-    # Accept either explicit path OR (save_dir + filename)
+    # Accept an explicit model path.
     path_in = body.get("path") or body.get("file_path")
-    # filename = body.get("filename")
 
     print(f"Path in: {path_in}")
 

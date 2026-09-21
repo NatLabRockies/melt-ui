@@ -26,10 +26,10 @@ jobs:
         run: python -m pip install -r requirements-dev.txt
 
       - name: Ruff
-        run: ruff check melt-ui
+        run: ruff check .
 
       - name: Black
-        run: black --check melt-ui
+        run: black --check .
 
       - name: Compile Python sources
-        run: python -m compileall -q melt-ui
+        run: python -m compileall -q main.py melt-ui

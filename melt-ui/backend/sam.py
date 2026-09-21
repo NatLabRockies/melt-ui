@@ -322,8 +322,10 @@ async def sam_health():
         diagnostics["errors"].append(f"transformers: {e}")
 
     try:
+        import PIL
 
         diagnostics["pillow_available"] = True
+        diagnostics["pillow_version"] = PIL.__version__
     except Exception as e:
         diagnostics["errors"].append(f"pillow: {e}")
 

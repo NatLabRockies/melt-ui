@@ -14,7 +14,7 @@ repos:
     hooks:
       - id: ruff
         name: ruff
-        entry: python -m ruff check --fix
+        entry: python -m ruff check
         language: system
         types: [python]
 
