@@ -72,7 +72,7 @@ class SaveModelNode extends AsyncMultiOutputNodeBase {
       include_history: !!this.properties.include_history,
     };
 
-    const response = await fetch(endpoint, {
+    const response = await window.MeltApi.fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -239,7 +239,7 @@ class LoadModelNode extends AsyncMultiOutputNodeBase {
   // the selected path to the callback.
   _browseFile(title, filetypes, callback) {
     const node = this;
-    fetch("/browse_file", {
+    window.MeltApi.fetch("/browse_file", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title, filetypes }),
@@ -277,7 +277,7 @@ class LoadModelNode extends AsyncMultiOutputNodeBase {
           : null,
     };
 
-    const response = await fetch(endpoint, {
+    const response = await window.MeltApi.fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

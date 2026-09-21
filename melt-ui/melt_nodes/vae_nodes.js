@@ -786,7 +786,7 @@ class VAELatentEncodeNode extends AsyncMultiOutputNodeBase {
       include_encoder_stats: !!this.properties.include_encoder_stats,
     };
 
-    const response = await fetch(endpoint, {
+    const response = await window.MeltApi.fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -898,7 +898,7 @@ class VAEReconstructDataNode extends AsyncMultiOutputNodeBase {
       error_metric: this.properties.error_metric || "mse",
     };
 
-    const response = await fetch(endpoint, {
+    const response = await window.MeltApi.fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -1016,7 +1016,7 @@ class VAEAnomalyScoreNode extends AsyncMultiOutputNodeBase {
       threshold_quantile: Number(this.properties.threshold_quantile),
     };
 
-    const response = await fetch(endpoint, {
+    const response = await window.MeltApi.fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -1139,7 +1139,7 @@ class VAELatentClusterNode extends AsyncMultiOutputNodeBase {
       n_init: parseInt(this.properties.n_init),
     };
 
-    const response = await fetch(endpoint, {
+    const response = await window.MeltApi.fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -1254,7 +1254,7 @@ class VAEDecodeLatentNode extends AsyncMultiOutputNodeBase {
       random_state: parseInt(this.properties.random_state),
     };
 
-    const response = await fetch(endpoint, {
+    const response = await window.MeltApi.fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -1354,7 +1354,7 @@ class VAELatentInterpolateNode extends AsyncMultiOutputNodeBase {
       num_steps: parseInt(this.properties.num_steps),
     };
 
-    const response = await fetch(endpoint, {
+    const response = await window.MeltApi.fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

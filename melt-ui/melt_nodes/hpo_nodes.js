@@ -1841,7 +1841,7 @@ class MELTHyperparameterTunerNode extends AsyncMultiOutputNodeBase {
   }
 
   async _postJson(endpoint, payload) {
-    const response = await fetch(endpoint, {
+    const response = await window.MeltApi.fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

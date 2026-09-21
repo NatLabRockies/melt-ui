@@ -175,7 +175,7 @@ class PlotNodeBase extends LiteGraph.LGraphNode {
 
     return new Promise(async (resolve, reject) => {
       try {
-        const response = await fetch(endpoint, {
+        const response = await window.MeltApi.fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),

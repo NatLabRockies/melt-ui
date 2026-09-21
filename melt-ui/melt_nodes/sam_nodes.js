@@ -37,7 +37,7 @@ class SAMLoadImageNode extends AsyncMultiOutputNodeBase {
   }
 
   _browseFile(title, filetypes, callback) {
-    fetch("/browse_file", {
+    window.MeltApi.fetch("/browse_file", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title, filetypes }),
@@ -54,7 +54,7 @@ class SAMLoadImageNode extends AsyncMultiOutputNodeBase {
       return { image: null, image_uri: "", shape: { width: 0, height: 0 } };
     }
 
-    const response = await fetch(
+    const response = await window.MeltApi.fetch(
       this.properties.endpoint || "/sam_load_image",
       {
         method: "POST",
@@ -553,7 +553,7 @@ class SAMLoadModelNode extends AsyncMultiOutputNodeBase {
         `[SAMLoadModelNode] Fetching checkpoint: ${this.properties.checkpoint} on device: ${this.properties.device}`,
       );
 
-      const response = await fetch(
+      const response = await window.MeltApi.fetch(
         this.properties.endpoint || "/sam_load_model",
         {
           method: "POST",
@@ -724,7 +724,7 @@ class SAMSegmentNode extends AsyncMultiOutputNodeBase {
       multimask_output: !!this.properties.multimask_output,
     };
 
-    const response = await fetch(this.properties.endpoint || "/sam_segment", {
+    const response = await window.MeltApi.fetch(this.properties.endpoint || "/sam_segment", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -1027,7 +1027,7 @@ class GroundedDINODetectNode extends AsyncMultiOutputNodeBase {
       text_threshold,
     };
 
-    const response = await fetch(
+    const response = await window.MeltApi.fetch(
       this.properties.endpoint || "/grounded_dino_detect",
       {
         method: "POST",
@@ -1236,7 +1236,7 @@ class SAMHealthCheckNode extends AsyncMultiOutputNodeBase {
   }
 
   async fetch() {
-    const response = await fetch(this.properties.endpoint || "/sam_health", {
+    const response = await window.MeltApi.fetch(this.properties.endpoint || "/sam_health", {
       method: "GET",
       headers: { "Content-Type": "application/json" },
     });

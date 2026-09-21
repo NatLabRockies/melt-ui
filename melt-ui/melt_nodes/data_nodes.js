@@ -69,7 +69,7 @@ class RegressionDataNode extends AsyncMultiOutputNodeBase {
       random_state: parseInt(this.properties.random_state),
     };
 
-    const response = await fetch(endpoint, {
+    const response = await window.MeltApi.fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -177,7 +177,7 @@ class DataNormalizerNode extends AsyncNodeBase {
       norm_typ: this.properties.norm_typ,
     };
 
-    const response = await fetch(endpoint, {
+    const response = await window.MeltApi.fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -1119,7 +1119,7 @@ class ExcelXYDataNode extends AsyncMultiOutputNodeBase {
       preview_rows: this.properties.preview_rows,
     };
 
-    const res = await fetch(endpoint, {
+    const res = await window.MeltApi.fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -1187,7 +1187,7 @@ class ExcelXYDataNode extends AsyncMultiOutputNodeBase {
     fd.append("file", file, file.name);
     fd.append("preview_rows", String(this.properties.preview_rows));
 
-    const res = await fetch(endpoint, { method: "POST", body: fd });
+    const res = await window.MeltApi.fetch(endpoint, { method: "POST", body: fd });
     const text = await res.text();
 
     let json = null;
@@ -1346,7 +1346,7 @@ class ExcelXYDataNode extends AsyncMultiOutputNodeBase {
       y_cols,
     };
 
-    const res = await fetch(endpoint, {
+    const res = await window.MeltApi.fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -2109,7 +2109,7 @@ class TimeSeriesRegressionDataNode extends AsyncMultiOutputNodeBase {
       random_state: parseInt(this.properties.random_state),
     };
 
-    const response = await fetch(this.properties.endpoint, {
+    const response = await window.MeltApi.fetch(this.properties.endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -2348,7 +2348,7 @@ class VAESyntheticDataNode extends AsyncMultiOutputNodeBase {
       random_state: parseInt(this.properties.random_state),
     };
 
-    const response = await fetch(this.properties.endpoint, {
+    const response = await window.MeltApi.fetch(this.properties.endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -2486,7 +2486,7 @@ class SaveDataNode extends AsyncMultiOutputNodeBase {
       label_col: this.properties.label_col || "label",
     };
 
-    const response = await fetch(endpoint, {
+    const response = await window.MeltApi.fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -2632,7 +2632,7 @@ class PrepareTemporalEvalDataNode extends AsyncMultiOutputNodeBase {
           : null,
     };
 
-    const response = await fetch(endpoint, {
+    const response = await window.MeltApi.fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

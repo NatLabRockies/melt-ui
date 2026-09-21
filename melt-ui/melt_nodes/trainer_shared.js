@@ -23,7 +23,7 @@
     inFlightTrainingControllers.clear();
 
     for (const runId of activeTrainingRunIds) {
-      fetch("/melt_cancel_training", {
+      window.MeltApi.fetch("/melt_cancel_training", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ run_id: runId }),
@@ -223,7 +223,7 @@
 
     let response;
     try {
-      response = await fetch(endpoint, {
+      response = await window.MeltApi.fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payloadWithRunId),
