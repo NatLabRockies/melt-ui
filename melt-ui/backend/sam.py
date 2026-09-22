@@ -854,17 +854,6 @@ async def grounded_dino_detect(request: Request):
     width, height = pil_img.size
 
     try:
-        import supervision as sv
-    except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=(
-                "Grounded DINO dependencies are missing. "
-                "Install with `pip install transformers supervision pillow`."
-            ),
-        ) from exc
-
-    try:
         processor, model, cache_key, cache_hit = _get_dino_model(
             request, checkpoint, device
         )
@@ -895,16 +884,15 @@ async def grounded_dino_detect(request: Request):
         scores_tensor = result.get("scores")
         text_labels = result.get("text_labels") or result.get("labels") or []
 
-        detections = sv.Detections(
-            xyxy=(
-                boxes.detach().cpu().numpy() if boxes is not None else np.zeros((0, 4))
-            ),
-            confidence=(
-                scores_tensor.detach().cpu().numpy()
-                if scores_tensor is not None
-                else np.zeros((0,), dtype=np.float32)
-            ),
-            class_id=np.zeros(len(boxes) if boxes is not None else 0, dtype=int),
+        boxes_array = (
+            boxes.detach().cpu().numpy()
+            if boxes is not None
+            else np.zeros((0, 4), dtype=np.float32)
+        )
+        scores_array = (
+            scores_tensor.detach().cpu().numpy()
+            if scores_tensor is not None
+            else np.zeros((0,), dtype=np.float32)
         )
     except Exception as exc:
         raise HTTPException(
@@ -916,18 +904,19 @@ async def grounded_dino_detect(request: Request):
     scores = []
     labels = []
 
-    if hasattr(detections, "xyxy") and detections.xyxy is not None:
-        for i, box in enumerate(detections.xyxy):
-            x1, y1, x2, y2 = float(box[0]), float(box[1]), float(box[2]), float(box[3])
-            normalized_boxes.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2})
-            if hasattr(detections, "confidence") and detections.confidence is not None:
-                scores.append(float(detections.confidence[i]))
-            else:
-                scores.append(1.0)
-            if i < len(text_labels):
-                labels.append(str(text_labels[i]))
-            else:
-                labels.append(text_prompt)
+    for i, box in enumerate(boxes_array):
+        x1, y1, x2, y2 = float(box[0]), float(box[1]), float(box[2]), float(box[3])
+        normalized_boxes.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2})
+
+        if i < len(scores_array):
+            scores.append(float(scores_array[i]))
+        else:
+            scores.append(1.0)
+
+        if i < len(text_labels):
+            labels.append(str(text_labels[i]))
+        else:
+            labels.append(text_prompt)
 
     return JSONResponse(
         {

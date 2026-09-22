@@ -7,6 +7,7 @@ repos:
       - id: check-toml
       - id: check-merge-conflict
       - id: check-added-large-files
+        exclude: ^pixi\.lock$
       - id: end-of-file-fixer
       - id: trailing-whitespace
 

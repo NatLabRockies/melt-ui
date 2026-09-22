@@ -45,3 +45,45 @@ extend-immutable-calls = [
     "fastapi.Query",
     "fastapi.Security",
 ]
+
+[tool.pixi.workspace]
+name = "melt-ui"
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-arm64", "osx-64"]
+
+[tool.pixi.dependencies]
+python = "3.11.*"
+nodejs = "*"
+pip = "*"
+
+[tool.pixi.pypi-dependencies]
+ptmelt = { git = "https://github.com/NatLabRockies/pt-melt.git", rev = "390ddbe2613d50fe3c52b34bd6c8cd18716d67c8" }
+numpy = "*"
+pandas = "*"
+scikit-learn = "*"
+torch = "*"
+matplotlib = "*"
+fastapi = { version = "*", extras = ["standard"] }
+pydantic = "*"
+seaborn = "*"
+openpyxl = "*"
+safetensors = "*"
+pillow = "*"
+transformers = "*"
+
+[tool.pixi.feature.dev.pypi-dependencies]
+black = "==26.5.1"
+pre-commit = "==4.6.2"
+ruff = "==0.16.8"
+
+[tool.pixi.tasks]
+start = { cmd = "bash start.sh", cwd = "melt-ui" }
+
+[tool.pixi.feature.dev.tasks]
+lint = "ruff check ."
+format-check = "black --check ."
+compile = "python -m compileall -q melt-ui"
+precommit = "pre-commit run --all-files"
+
+[tool.pixi.environments]
+dev = ["dev"]

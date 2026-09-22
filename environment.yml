@@ -7,7 +7,7 @@ dependencies:
   - nodejs
   - pip
   - pip:
-    - git+https://github.com/NatLabRockies/pt-melt.git
+    - git+https://github.com/NatLabRockies/pt-melt.git@390ddbe2613d50fe3c52b34bd6c8cd18716d67c8
     - numpy
     - pandas
     - scikit-learn
@@ -20,4 +20,3 @@ dependencies:
     - safetensors
     - pillow
     - transformers
-    - supervision
