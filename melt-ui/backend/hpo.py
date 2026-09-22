@@ -1262,6 +1262,8 @@ def _prepare_temporal_data(body: Mapping[str, Any]):
 def _make_hpo_dataloaders(
     body: Mapping[str, Any], trainer_family: str, run_id: str, app
 ):
+    if _to_float(body, "val_size", 0.1) <= 0.0:
+        raise ValueError("val_size must be > 0 for hyperparameter tuning.")
     if trainer_family == "vae":
         x = np.asarray(body.get("x"))
         if x.ndim < 2:

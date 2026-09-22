@@ -197,6 +197,7 @@ class MELTSupervisedTrainerNode extends AsyncMultiOutputNodeBase {
       this.properties,
       x,
       y,
+      { allowZeroValidation: true },
     );
     if (inputError) {
       return TrainerNodeShared.emptyTrainingResult(inputError);

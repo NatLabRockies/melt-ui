@@ -210,6 +210,7 @@ async def melt_supervised_trainer(request: Request):
             "l2_reg": l2_reg,
             "num_mixtures": num_mixtures,
             "random_state": random_state,
+            "validation_available": val_size > 0.0,
             "x_data_is_scaled": False,
             "y_data_is_scaled": False,
             "x_data_scaled_available": True,

@@ -135,6 +135,11 @@ def _parse_split_triplet(data, field_name: str):
     return [np.asarray(arr) for arr in parsed]
 
 
+def _split_has_samples(values) -> bool:
+    arr = np.asarray(values)
+    return arr.ndim > 0 and arr.shape[0] > 0
+
+
 def _deserialize_normalizer(normalizer_payload, stored_normalizer=None):
     if hasattr(normalizer_payload, "inverse_transform"):
         return normalizer_payload
@@ -148,7 +153,7 @@ def _deserialize_normalizer(normalizer_payload, stored_normalizer=None):
 
 
 def _transform_x_split_for_model(x_split: np.ndarray, x_normalizer):
-    if x_normalizer is None:
+    if not _split_has_samples(x_split) or x_normalizer is None:
         return x_split
     if x_split.ndim == 2:
         return x_normalizer.transform(x_split)
@@ -164,6 +169,8 @@ def _inverse_y_preserve_shape(values: np.ndarray, y_normalizer):
     if y_normalizer is None:
         return values
     arr = np.asarray(values)
+    if not _split_has_samples(arr):
+        return arr
     if arr.ndim == 1:
         inv = y_normalizer.inverse_transform(arr.reshape(-1, 1))
         return inv.reshape(-1)
@@ -174,6 +181,8 @@ def _inverse_std_preserve_shape(std_values: np.ndarray, y_normalizer):
     if y_normalizer is None:
         return std_values
     std_arr = np.asarray(std_values)
+    if not _split_has_samples(std_arr):
+        return std_arr
     zeros = np.zeros_like(std_arr)
     try:
         inv_std = np.abs(
@@ -318,6 +327,10 @@ async def evaluate_supervised_model(request: Request):
 
     if evaluation_mode == "deterministic":
         for split_name, (x_split, y_split) in splits.items():
+            if not _split_has_samples(x_split):
+                prediction_bundle[split_name] = None
+                continue
+
             pred = make_predictions(
                 model,
                 x_split,
@@ -336,6 +349,10 @@ async def evaluate_supervised_model(request: Request):
         def compute_aleatoric_all():
             computed = {}
             for split_name, (x_split, y_split) in splits.items():
+                if not _split_has_samples(x_split):
+                    computed[split_name] = None
+                    continue
+
                 mean, std = _native_uq_predict(model, x_split)
                 computed[split_name] = {
                     "mean": mean,
@@ -347,6 +364,10 @@ async def evaluate_supervised_model(request: Request):
         def compute_epistemic_all():
             computed = {}
             for split_name, (x_split, y_split) in splits.items():
+                if not _split_has_samples(x_split):
+                    computed[split_name] = None
+                    continue
+
                 mean, std = _ensemble_uq_predict(model, x_split, ensemble_size)
                 computed[split_name] = {
                     "mean": mean,
@@ -358,6 +379,10 @@ async def evaluate_supervised_model(request: Request):
         def compute_total_all():
             computed = {}
             for split_name, (x_split, y_split) in splits.items():
+                if not _split_has_samples(x_split):
+                    computed[split_name] = None
+                    continue
+
                 mean, std = _total_uq_predict(model, x_split, ensemble_size)
                 computed[split_name] = {
                     "mean": mean,
@@ -428,69 +453,55 @@ async def evaluate_supervised_model(request: Request):
         y_test_real = y_test
 
     if evaluation_mode == "deterministic":
-        pred_train = prediction_bundle["train"]["mean"]
-        pred_val = prediction_bundle["validation"]["mean"]
-        pred_test = prediction_bundle["test"]["mean"]
-
-        if unnormalize and y_normalizer is not None:
-            pred_train = _inverse_y_preserve_shape(pred_train, y_normalizer)
-            pred_val = _inverse_y_preserve_shape(pred_val, y_normalizer)
-            pred_test = _inverse_y_preserve_shape(pred_test, y_normalizer)
-
-        # Plot predictions for each output index
-        for i, idx in enumerate(output_indices):
-            # Compute R-squared and RMSE for each dataset
-            r_sq_train = compute_rsquared(y_train_real[:, idx], pred_train[:, idx])
-            rmse_train = compute_rmse(y_train_real[:, idx], pred_train[:, idx])
-            r_sq_val = compute_rsquared(y_val_real[:, idx], pred_val[:, idx])
-            rmse_val = compute_rmse(y_val_real[:, idx], pred_val[:, idx])
-            r_sq_test = compute_rsquared(y_test_real[:, idx], pred_test[:, idx])
-            rmse_test = compute_rmse(y_test_real[:, idx], pred_test[:, idx])
-
-            # Create point cloud plot for each dataset
-            point_cloud_plot(
-                axes[0],
-                y_train_real[:, idx],
-                pred_train[:, idx],
-                r_sq_train,
-                rmse_train,
-                f"Output {idx}",
-                markers[i % len(markers)],
-                colors[i % len(colors)],
-                text_pos=text_positions[i % len(text_positions)],
-            )
-            point_cloud_plot(
-                axes[1],
-                y_val_real[:, idx],
-                pred_val[:, idx],
-                r_sq_val,
-                rmse_val,
-                f"Output {idx}",
-                markers[i % len(markers)],
-                colors[i % len(colors)],
-                text_pos=text_positions[i % len(text_positions)],
-            )
-            point_cloud_plot(
-                axes[2],
-                y_test_real[:, idx],
-                pred_test[:, idx],
-                r_sq_test,
-                rmse_test,
-                f"Output {idx}",
-                markers[i % len(markers)],
-                colors[i % len(colors)],
-                text_pos=text_positions[i % len(text_positions)],
-            )
-    else:
-        # Use native point-cloud UQ plotting helper directly on endpoint axes.
-        idx = output_indices[0]
         split_plot_specs = [
-            (axes[0], prediction_bundle["train"], y_train_real),
-            (axes[1], prediction_bundle["validation"], y_val_real),
-            (axes[2], prediction_bundle["test"], y_test_real),
+            ("train", axes[0], y_train_real),
+            ("validation", axes[1], y_val_real),
+            ("test", axes[2], y_test_real),
         ]
 
-        for ax, split_bundle, y_real in split_plot_specs:
+        for i, idx in enumerate(output_indices):
+            for split_name, ax, y_real in split_plot_specs:
+                split_bundle = prediction_bundle[split_name]
+                if split_bundle is None:
+                    continue
+
+                pred_arr = split_bundle["mean"]
+                if unnormalize and y_normalizer is not None:
+                    pred_arr = _inverse_y_preserve_shape(
+                        pred_arr,
+                        y_normalizer,
+                    )
+
+                pred_series = _slice_output(pred_arr, idx)
+                truth_series = _slice_output(y_real, idx)
+
+                r_squared = compute_rsquared(truth_series, pred_series)
+                rmse = compute_rmse(truth_series, pred_series)
+
+                point_cloud_plot(
+                    ax,
+                    truth_series,
+                    pred_series,
+                    r_squared,
+                    rmse,
+                    f"Output {idx}",
+                    markers[i % len(markers)],
+                    colors[i % len(colors)],
+                    text_pos=text_positions[i % len(text_positions)],
+                )
+    else:
+        idx = output_indices[0]
+        split_plot_specs = [
+            ("train", axes[0], y_train_real),
+            ("validation", axes[1], y_val_real),
+            ("test", axes[2], y_test_real),
+        ]
+
+        for split_name, ax, y_real in split_plot_specs:
+            split_bundle = prediction_bundle[split_name]
+            if split_bundle is None:
+                continue
+
             mean_arr = split_bundle["mean"]
             std_arr = split_bundle["std"]
             if unnormalize and y_normalizer is not None:
@@ -509,10 +520,17 @@ async def evaluate_supervised_model(request: Request):
                 metrics_to_display=None,
             )
 
-    # Set plot titles
-    axes[0].set_title("Training Data")
-    axes[1].set_title("Validation Data")
-    axes[2].set_title("Test Data")
+    split_titles = [
+        ("train", "Training", axes[0]),
+        ("validation", "Validation", axes[1]),
+        ("test", "Test", axes[2]),
+    ]
+    for split_name, label, ax in split_titles:
+        if prediction_bundle[split_name] is None:
+            ax.axis("off")
+            ax.set_title(f"{label} Data (not available)")
+        else:
+            ax.set_title(f"{label} Data")
 
     fig.suptitle("Predictions")
     fig.tight_layout(rect=[0, 0, 1, 0.96])

@@ -247,6 +247,8 @@ class CancellableDataLoader:
 
 
 def make_cancellable_dataloader(dataloader, should_cancel, run_id: str):
+    if dataloader is None:
+        return None
     return CancellableDataLoader(
         dataloader=dataloader, should_cancel=should_cancel, run_id=run_id
     )
@@ -259,15 +261,25 @@ def split_train_val_test(
     test_size: float,
     random_state: int,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    if val_size <= 0.0 or val_size >= 1.0:
-        raise ValueError("val_size must be in the range (0, 1).")
+    if val_size < 0.0 or val_size >= 1.0:
+        raise ValueError("val_size must be in the range [0, 1).")
     if test_size <= 0.0 or test_size >= 1.0:
         raise ValueError("test_size must be in the range (0, 1).")
-
-    test_size_combined = val_size + test_size
-    if test_size_combined >= 1.0:
+    if val_size + test_size >= 1.0:
         raise ValueError("val_size + test_size must be less than 1.")
 
+    if val_size == 0.0:
+        x_train, x_test, y_train, y_test = train_test_split(
+            x,
+            y,
+            test_size=test_size,
+            random_state=random_state,
+        )
+        x_val = np.empty((0, *x.shape[1:]), dtype=x.dtype)
+        y_val = np.empty((0, *y.shape[1:]), dtype=y.dtype)
+        return x_train, x_val, x_test, y_train, y_val, y_test
+
+    test_size_combined = val_size + test_size
     x_train, x_tmp, y_train, y_tmp = train_test_split(
         x, y, test_size=test_size_combined, random_state=random_state
     )
@@ -341,7 +353,6 @@ def scale_splits(
         norm_type=normalizer_type, n_normalizers=2
     )
 
-    # For temporal tensors [N, T, F], fit normalizer over flattened [N*T, F]
     if x_train.ndim == 3:
         x_train_fit = x_train.reshape(-1, x_train.shape[-1])
     else:
@@ -350,9 +361,14 @@ def scale_splits(
     x_normalizer.fit(x_train_fit)
     y_normalizer.fit(y_train)
 
+    def _empty_like_scaled(values: np.ndarray) -> np.ndarray:
+        return np.empty(values.shape, dtype=np.float64)
+
     if x_train.ndim == 3:
 
         def _scale_x_3d(x_in: np.ndarray) -> np.ndarray:
+            if x_in.shape[0] == 0:
+                return _empty_like_scaled(x_in)
             x_2d = x_in.reshape(-1, x_in.shape[-1])
             x_2d_scaled = x_normalizer.transform(x_2d)
             return x_2d_scaled.reshape(x_in.shape)
@@ -362,11 +378,19 @@ def scale_splits(
         x_test_scaled = _scale_x_3d(x_test)
     else:
         x_train_scaled = x_normalizer.transform(x_train)
-        x_val_scaled = x_normalizer.transform(x_val)
+        x_val_scaled = (
+            x_normalizer.transform(x_val)
+            if x_val.shape[0] > 0
+            else _empty_like_scaled(x_val)
+        )
         x_test_scaled = x_normalizer.transform(x_test)
 
     y_train_scaled = y_normalizer.transform(y_train)
-    y_val_scaled = y_normalizer.transform(y_val)
+    y_val_scaled = (
+        y_normalizer.transform(y_val)
+        if y_val.shape[0] > 0
+        else _empty_like_scaled(y_val)
+    )
     y_test_scaled = y_normalizer.transform(y_test)
 
     return (
@@ -393,13 +417,23 @@ def make_dataloaders(
         torch.from_numpy(x_train_scaled).float(),
         torch.from_numpy(y_train_scaled).float(),
     )
-    val_dataset = TensorDataset(
-        torch.from_numpy(x_val_scaled).float(),
-        torch.from_numpy(y_val_scaled).float(),
+    train_dataloader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
     )
 
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle)
-    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    val_dataloader = None
+    if x_val_scaled.shape[0] > 0:
+        val_dataset = TensorDataset(
+            torch.from_numpy(x_val_scaled).float(),
+            torch.from_numpy(y_val_scaled).float(),
+        )
+        val_dataloader = DataLoader(
+            val_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+        )
 
     return train_dataloader, val_dataloader
 

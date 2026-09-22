@@ -154,21 +154,33 @@
     };
   }
 
-  function validateCommonTrainingInputs(properties, x, y) {
+  function validateCommonTrainingInputs(
+    properties,
+    x,
+    y,
+    options = {},
+  ) {
     if (!x || !y) {
       return "Missing x or y input";
     }
 
     const valSize = Number(properties.val_size);
     const testSize = Number(properties.test_size);
+    const allowZeroValidation = !!options.allowZeroValidation;
+    const invalidValidationSize = allowZeroValidation
+      ? valSize < 0
+      : valSize <= 0;
+
     if (
       !Number.isFinite(valSize) ||
       !Number.isFinite(testSize) ||
-      valSize <= 0 ||
+      invalidValidationSize ||
       testSize <= 0 ||
       valSize + testSize >= 1
     ) {
-      return "Validation/Test split must satisfy: val_size > 0, test_size > 0, and val_size + test_size < 1";
+      return allowZeroValidation
+        ? "Validation/Test split must satisfy: val_size >= 0, test_size > 0, and val_size + test_size < 1"
+        : "Validation/Test split must satisfy: val_size > 0, test_size > 0, and val_size + test_size < 1";
     }
 
     const batchSize = parseInt(properties.batch_size);

@@ -60,6 +60,11 @@ async def melt_vae_trainer(request: Request):
 
         val_size = float(body.get("val_size", 0.1))
         test_size = float(body.get("test_size", 0.1))
+        if val_size <= 0.0:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "val_size must be > 0 for VAE training."},
+            )
         normalizer_type = body.get("norm_type", "none")
         random_state = int(body.get("random_state", 42))
         shuffle = bool(body.get("shuffle", True))
