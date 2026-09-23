@@ -12,7 +12,11 @@ import numpy as np
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from .temporal_trainers import prepare_sequences_from_raw
+from .temporal_trainers import (
+    _split_temporal_lengths,
+    _validate_temporal_lengths,
+    prepare_sequences_from_raw,
+)
 from .training_common import (
     HYPERPARAMETER_ALIASES,
     HYPERPARAMETER_ALLOWLISTS,
@@ -1148,10 +1152,19 @@ def _prepare_temporal_data(body: Mapping[str, Any]):
     seq_to_one = bool(body.get("seq_to_one", True))
     if seq_length < 1:
         raise ValueError("seq_length must be >= 1.")
+    if not seq_to_one:
+        raise ValueError(
+            "seq_to_one=false is not supported by the current "
+            "PT-MELT temporal models."
+        )
 
     if x.ndim == 2:
-        if not seq_to_one:
-            raise ValueError("Raw 2D temporal HPO currently requires seq_to_one=true.")
+        if body.get("lengths") is not None:
+            raise ValueError(
+                "Explicit lengths are only supported for pre-windowed "
+                "3D temporal HPO inputs."
+            )
+
         raw_splits = split_train_val_test_temporal(
             x=x,
             y=y,
@@ -1161,6 +1174,7 @@ def _prepare_temporal_data(body: Mapping[str, Any]):
         x_train_raw, x_val_raw, x_test_raw, y_train_raw, y_val_raw, y_test_raw = (
             raw_splits
         )
+
         for name, split in {
             "train": x_train_raw,
             "val": x_val_raw,
@@ -1180,6 +1194,7 @@ def _prepare_temporal_data(body: Mapping[str, Any]):
             y_test=y_test_raw,
             normalizer_type=body.get("norm_type", "none"),
         )
+
         (
             x_train_raw_scaled,
             x_val_raw_scaled,
@@ -1192,23 +1207,59 @@ def _prepare_temporal_data(body: Mapping[str, Any]):
         ) = scaled_raw
 
         x_train, y_train = prepare_sequences_from_raw(
-            x_train_raw, y_train_raw, seq_length, seq_to_one
+            x_train_raw,
+            y_train_raw,
+            seq_length,
+            seq_to_one,
         )
         x_val, y_val = prepare_sequences_from_raw(
-            x_val_raw, y_val_raw, seq_length, seq_to_one
+            x_val_raw,
+            y_val_raw,
+            seq_length,
+            seq_to_one,
         )
         x_test, y_test = prepare_sequences_from_raw(
-            x_test_raw, y_test_raw, seq_length, seq_to_one
+            x_test_raw,
+            y_test_raw,
+            seq_length,
+            seq_to_one,
         )
+
         x_train_scaled, y_train_scaled = prepare_sequences_from_raw(
-            x_train_raw_scaled, y_train_raw_scaled, seq_length, seq_to_one
+            x_train_raw_scaled,
+            y_train_raw_scaled,
+            seq_length,
+            seq_to_one,
         )
         x_val_scaled, y_val_scaled = prepare_sequences_from_raw(
-            x_val_raw_scaled, y_val_raw_scaled, seq_length, seq_to_one
+            x_val_raw_scaled,
+            y_val_raw_scaled,
+            seq_length,
+            seq_to_one,
         )
         x_test_scaled, y_test_scaled = prepare_sequences_from_raw(
-            x_test_raw_scaled, y_test_raw_scaled, seq_length, seq_to_one
+            x_test_raw_scaled,
+            y_test_raw_scaled,
+            seq_length,
+            seq_to_one,
         )
+
+        train_lengths = np.full(
+            x_train_scaled.shape[0],
+            seq_length,
+            dtype=np.int64,
+        )
+        val_lengths = np.full(
+            x_val_scaled.shape[0],
+            seq_length,
+            dtype=np.int64,
+        )
+        test_lengths = np.full(
+            x_test_scaled.shape[0],
+            seq_length,
+            dtype=np.int64,
+        )
+
         return (
             (x_train, x_val, x_test, y_train, y_val, y_test),
             (
@@ -1221,14 +1272,22 @@ def _prepare_temporal_data(body: Mapping[str, Any]):
                 x_normalizer,
                 y_normalizer,
             ),
+            (train_lengths, val_lengths, test_lengths),
         )
 
     if x.ndim != 3:
         raise ValueError("Temporal HPO expects x to be 2D raw or 3D windowed data.")
     if x.shape[1] != seq_length:
         raise ValueError(
-            f"Input sequence length mismatch: got {x.shape[1]}, expected {seq_length}."
+            f"Input sequence length mismatch: got {x.shape[1]}, "
+            f"expected {seq_length}."
         )
+
+    lengths = _validate_temporal_lengths(
+        body.get("lengths"),
+        sample_count=x.shape[0],
+        sequence_length=seq_length,
+    )
 
     x_train, x_val, x_test, y_train, y_val, y_test = split_train_val_test_temporal(
         x=x,
@@ -1236,16 +1295,29 @@ def _prepare_temporal_data(body: Mapping[str, Any]):
         val_size=_to_float(body, "val_size", 0.1),
         test_size=_to_float(body, "test_size", 0.1),
     )
+
+    train_lengths, val_lengths, test_lengths = _split_temporal_lengths(
+        lengths,
+        x_train,
+        x_val,
+        x_test,
+    )
+
     boundary_gap = max(0, seq_length - 1)
     if boundary_gap > 0:
         if x_val.shape[0] <= boundary_gap or x_test.shape[0] <= boundary_gap:
             raise ValueError(
-                "Not enough pre-windowed sequences after applying temporal boundary gap."
+                "Not enough pre-windowed sequences after applying "
+                "temporal boundary gap."
             )
+
         x_val = x_val[boundary_gap:]
         y_val = y_val[boundary_gap:]
+        val_lengths = val_lengths[boundary_gap:]
+
         x_test = x_test[boundary_gap:]
         y_test = y_test[boundary_gap:]
+        test_lengths = test_lengths[boundary_gap:]
 
     scaled = scale_splits(
         x_train=x_train,
@@ -1255,8 +1327,16 @@ def _prepare_temporal_data(body: Mapping[str, Any]):
         y_val=y_val,
         y_test=y_test,
         normalizer_type=body.get("norm_type", "none"),
+        x_train_lengths=train_lengths,
+        x_val_lengths=val_lengths,
+        x_test_lengths=test_lengths,
     )
-    return ((x_train, x_val, x_test, y_train, y_val, y_test), scaled)
+
+    return (
+        (x_train, x_val, x_test, y_train, y_val, y_test),
+        scaled,
+        (train_lengths, val_lengths, test_lengths),
+    )
 
 
 def _make_hpo_dataloaders(
@@ -1264,11 +1344,16 @@ def _make_hpo_dataloaders(
 ):
     if _to_float(body, "val_size", 0.1) <= 0.0:
         raise ValueError("val_size must be > 0 for hyperparameter tuning.")
+
+    train_lengths = None
+    val_lengths = None
+
     if trainer_family == "vae":
         x = np.asarray(body.get("x"))
         if x.ndim < 2:
             raise ValueError("VAE HPO input x must be at least 2D.")
         y = x.copy()
+
         splits = split_train_val_test(
             x=x,
             y=y,
@@ -1277,6 +1362,7 @@ def _make_hpo_dataloaders(
             random_state=_to_int(body, "random_state", 42),
         )
         x_train, x_val, x_test, y_train, y_val, y_test = splits
+
         scaled = scale_splits(
             x_train=x_train,
             x_val=x_val,
@@ -1286,9 +1372,11 @@ def _make_hpo_dataloaders(
             y_test=y_test,
             normalizer_type=body.get("norm_type", "none"),
         )
+
     elif trainer_family == "static":
         _, _, splits = _prepare_static_data(body)
         x_train, x_val, x_test, y_train, y_val, y_test = splits
+
         scaled = scale_splits(
             x_train=x_train,
             x_val=x_val,
@@ -1298,9 +1386,25 @@ def _make_hpo_dataloaders(
             y_test=y_test,
             normalizer_type=body.get("norm_type", "none"),
         )
+
     else:
-        splits, scaled = _prepare_temporal_data(body)
+        splits, scaled, lengths_data = _prepare_temporal_data(body)
         x_train, x_val, x_test, y_train, y_val, y_test = splits
+        train_lengths, val_lengths, _test_lengths = lengths_data
+
+        if trainer_family == "temporal_rnn" and bool(body.get("suffix_crop", False)):
+            min_length = _to_int(
+                body,
+                "suffix_crop_min_length",
+                32,
+            )
+            if min_length < 1:
+                raise ValueError("suffix_crop_min_length must be >= 1.")
+            if np.any(train_lengths < min_length):
+                raise ValueError(
+                    "suffix_crop_min_length cannot exceed any training "
+                    "sequence length."
+                )
 
     (
         x_train_scaled,
@@ -1312,6 +1416,7 @@ def _make_hpo_dataloaders(
         _x_normalizer,
         _y_normalizer,
     ) = scaled
+
     train_dl, val_dl = make_dataloaders(
         x_train_scaled=x_train_scaled,
         y_train_scaled=y_train_scaled,
@@ -1319,7 +1424,10 @@ def _make_hpo_dataloaders(
         y_val_scaled=y_val_scaled,
         batch_size=_to_int(body, "batch_size", 32),
         shuffle=bool(body.get("shuffle", True)),
+        train_lengths=train_lengths,
+        val_lengths=val_lengths,
     )
+
     return train_dl, val_dl, (x_train_scaled, y_train_scaled)
 
 
