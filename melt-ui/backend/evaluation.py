@@ -140,6 +140,70 @@ def _split_has_samples(values) -> bool:
     return arr.ndim > 0 and arr.shape[0] > 0
 
 
+def _normalize_temporal_lengths(lengths, x_split, split_name):
+    if x_split.ndim != 3:
+        raise ValueError(
+            f"{split_name} temporal input must have shape "
+            "[samples, timesteps, features]."
+        )
+
+    if lengths is None:
+        return np.full(
+            x_split.shape[0],
+            x_split.shape[1],
+            dtype=np.int64,
+        )
+
+    raw = np.asarray(lengths)
+    if raw.ndim != 1 or raw.shape[0] != x_split.shape[0]:
+        raise ValueError(f"{split_name} lengths must contain one value per sample.")
+    if raw.dtype == np.bool_:
+        raise ValueError(f"{split_name} lengths must be integers.")
+
+    try:
+        numeric = raw.astype(np.float64)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{split_name} lengths must be numeric integers.") from exc
+
+    if not np.all(np.isfinite(numeric)):
+        raise ValueError(f"{split_name} lengths must be finite integers.")
+    if not np.all(numeric == np.floor(numeric)):
+        raise ValueError(f"{split_name} lengths must be integers.")
+
+    normalized = numeric.astype(np.int64)
+    if normalized.size and (
+        np.any(normalized < 1) or np.any(normalized > x_split.shape[1])
+    ):
+        raise ValueError(
+            f"{split_name} lengths must be between 1 and " "the padded sequence length."
+        )
+
+    return normalized
+
+
+def _resolve_temporal_lengths(model_entry, x_splits):
+    stored = model_entry.get("lengths_data")
+    split_names = ("training", "validation", "test")
+
+    if stored is None:
+        stored = (None, None, None)
+
+    if not isinstance(stored, (list, tuple)) or len(stored) != 3:
+        raise ValueError(
+            "Stored temporal lengths must contain train/validation/test splits."
+        )
+
+    return tuple(
+        _normalize_temporal_lengths(lengths, x_split, split_name)
+        for lengths, x_split, split_name in zip(
+            stored,
+            x_splits,
+            split_names,
+            strict=True,
+        )
+    )
+
+
 def _deserialize_normalizer(normalizer_payload, stored_normalizer=None):
     if hasattr(normalizer_payload, "inverse_transform"):
         return normalizer_payload
@@ -152,16 +216,41 @@ def _deserialize_normalizer(normalizer_payload, stored_normalizer=None):
     return None
 
 
-def _transform_x_split_for_model(x_split: np.ndarray, x_normalizer):
+def _transform_x_split_for_model(
+    x_split: np.ndarray,
+    x_normalizer,
+    lengths=None,
+):
     if not _split_has_samples(x_split) or x_normalizer is None:
         return x_split
+
     if x_split.ndim == 2:
         return x_normalizer.transform(x_split)
+
     if x_split.ndim == 3:
         n, t, f = x_split.shape
-        x_flat = x_split.reshape(-1, f)
-        x_flat_scaled = x_normalizer.transform(x_flat)
-        return x_flat_scaled.reshape(n, t, f)
+
+        if lengths is None:
+            x_flat = x_split.reshape(-1, f)
+            x_flat_scaled = x_normalizer.transform(x_flat)
+            return x_flat_scaled.reshape(n, t, f)
+
+        lengths = _normalize_temporal_lengths(
+            lengths,
+            x_split,
+            "evaluation",
+        )
+        valid_mask = np.arange(t)[None, :] < lengths[:, None]
+        valid_values = x_split[valid_mask]
+        scaled_values = x_normalizer.transform(valid_values)
+
+        scaled = np.zeros(
+            x_split.shape,
+            dtype=np.asarray(scaled_values).dtype,
+        )
+        scaled[valid_mask] = scaled_values
+        return scaled
+
     return x_normalizer.transform(x_split)
 
 
@@ -614,6 +703,17 @@ async def evaluate_temporal_supervised_model(request: Request):
             },
         )
 
+    try:
+        train_lengths, val_lengths, test_lengths = _resolve_temporal_lengths(
+            model_dict,
+            (x_train, x_val, x_test),
+        )
+    except ValueError as exc:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(exc)},
+        )
+
     model = model_dict["model"]
     model_metadata = model_dict.get("model_meta", {}) or {}
     seq_length = int(model_metadata.get("seq_length", x_train.shape[1]))
@@ -637,9 +737,21 @@ async def evaluate_temporal_supervised_model(request: Request):
     )
 
     if x_normalizer is not None and not x_data_is_scaled:
-        x_train_model = _transform_x_split_for_model(x_train, x_normalizer)
-        x_val_model = _transform_x_split_for_model(x_val, x_normalizer)
-        x_test_model = _transform_x_split_for_model(x_test, x_normalizer)
+        x_train_model = _transform_x_split_for_model(
+            x_train,
+            x_normalizer,
+            lengths=train_lengths,
+        )
+        x_val_model = _transform_x_split_for_model(
+            x_val,
+            x_normalizer,
+            lengths=val_lengths,
+        )
+        x_test_model = _transform_x_split_for_model(
+            x_test,
+            x_normalizer,
+            lengths=test_lengths,
+        )
     else:
         x_train_model, x_val_model, x_test_model = x_train, x_val, x_test
 
@@ -650,6 +762,7 @@ async def evaluate_temporal_supervised_model(request: Request):
             y_normalizer=None,
             unnormalize=False,
             training=False,
+            lengths=train_lengths,
         )
         pred_val, std_pred_val = make_predictions(
             model,
@@ -657,6 +770,7 @@ async def evaluate_temporal_supervised_model(request: Request):
             y_normalizer=None,
             unnormalize=False,
             training=False,
+            lengths=val_lengths,
         )
         pred_test, std_pred_test = make_predictions(
             model,
@@ -664,6 +778,7 @@ async def evaluate_temporal_supervised_model(request: Request):
             y_normalizer=None,
             unnormalize=False,
             training=False,
+            lengths=test_lengths,
         )
     else:
         pred_train = make_predictions(
@@ -672,6 +787,7 @@ async def evaluate_temporal_supervised_model(request: Request):
             y_normalizer=None,
             unnormalize=False,
             training=False,
+            lengths=train_lengths,
         )
         pred_val = make_predictions(
             model,
@@ -679,6 +795,7 @@ async def evaluate_temporal_supervised_model(request: Request):
             y_normalizer=None,
             unnormalize=False,
             training=False,
+            lengths=val_lengths,
         )
         pred_test = make_predictions(
             model,
@@ -686,6 +803,7 @@ async def evaluate_temporal_supervised_model(request: Request):
             y_normalizer=None,
             unnormalize=False,
             training=False,
+            lengths=test_lengths,
         )
         std_pred_train = np.zeros_like(pred_train)
         std_pred_val = np.zeros_like(pred_val)
@@ -773,5 +891,10 @@ async def evaluate_temporal_supervised_model(request: Request):
         "seq_to_one": seq_to_one,
         "time_offset": max(0, seq_length - 1) if seq_to_one else 0,
         "output_index": output_index,
+        "variable_lengths": bool(
+            np.any(train_lengths != seq_length)
+            or np.any(val_lengths != seq_length)
+            or np.any(test_lengths != seq_length)
+        ),
     }
     return image_payload
