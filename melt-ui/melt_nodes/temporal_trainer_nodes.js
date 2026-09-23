@@ -192,6 +192,12 @@ class MELTTemporalSupervisedTrainerNode extends AsyncMultiOutputNodeBase {
         { hasY: true, hasLengths: true, hasHyperparameters: true },
       );
 
+    if (this.properties.seq_to_one === false) {
+      return TrainerNodeShared.emptyTrainingResult(
+        "Sequence-to-sequence temporal training is not supported yet.",
+      );
+    }
+
     const inputError = TrainerNodeShared.validateCommonTrainingInputs(
       this.properties,
       x,
@@ -222,11 +228,6 @@ class MELTTemporalSupervisedTrainerNode extends AsyncMultiOutputNodeBase {
 
     if (lengths) {
       payload.lengths = lengths;
-    } else if (Array.isArray(x) && x.length > 0 && Array.isArray(x[0])) {
-      const inferredLength = Array.isArray(x[0]) ? x[0].length : null;
-      if (inferredLength && Number.isFinite(inferredLength)) {
-        payload.lengths = Array(x.length).fill(inferredLength);
-      }
     }
 
     return TrainerNodeShared.postJsonWithErrors(endpoint, payload);
@@ -460,6 +461,12 @@ class MELTTemporalTransformerTrainerNode extends AsyncMultiOutputNodeBase {
         { hasY: true, hasLengths: true, hasHyperparameters: true },
       );
 
+    if (this.properties.seq_to_one === false) {
+      return TrainerNodeShared.emptyTrainingResult(
+        "Sequence-to-sequence temporal training is not supported yet.",
+      );
+    }
+
     const inputError = TrainerNodeShared.validateCommonTrainingInputs(
       this.properties,
       x,
@@ -489,11 +496,6 @@ class MELTTemporalTransformerTrainerNode extends AsyncMultiOutputNodeBase {
 
     if (lengths) {
       payload.lengths = lengths;
-    } else if (Array.isArray(x) && x.length > 0 && Array.isArray(x[0])) {
-      const inferredLength = Array.isArray(x[0]) ? x[0].length : null;
-      if (inferredLength && Number.isFinite(inferredLength)) {
-        payload.lengths = Array(x.length).fill(inferredLength);
-      }
     }
 
     return TrainerNodeShared.postJsonWithErrors(endpoint, payload);

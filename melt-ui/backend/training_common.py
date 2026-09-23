@@ -348,13 +348,66 @@ def scale_splits(
     y_val: np.ndarray,
     y_test: np.ndarray,
     normalizer_type: str,
+    x_train_lengths=None,
+    x_val_lengths=None,
+    x_test_lengths=None,
 ):
     x_normalizer, y_normalizer = get_normalizers(
         norm_type=normalizer_type, n_normalizers=2
     )
 
+    def _normalize_lengths(x_in, lengths, split_name):
+        if lengths is None:
+            return None
+
+        raw = np.asarray(lengths)
+        if raw.ndim != 1 or raw.shape[0] != x_in.shape[0]:
+            raise ValueError(f"{split_name} lengths must contain one value per sample.")
+        if raw.dtype == np.bool_:
+            raise ValueError(f"{split_name} lengths must be integers.")
+
+        try:
+            numeric = raw.astype(np.float64)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{split_name} lengths must be numeric integers.") from exc
+
+        if not np.all(np.isfinite(numeric)):
+            raise ValueError(f"{split_name} lengths must be finite integers.")
+        if not np.all(numeric == np.floor(numeric)):
+            raise ValueError(f"{split_name} lengths must be integers.")
+
+        normalized = numeric.astype(np.int64)
+        if x_in.ndim == 3 and normalized.size:
+            if np.any(normalized < 1) or np.any(normalized > x_in.shape[1]):
+                raise ValueError(
+                    f"{split_name} lengths must be between 1 and "
+                    "the padded sequence length."
+                )
+
+        return normalized
+
+    train_lengths = _normalize_lengths(
+        x_train,
+        x_train_lengths,
+        "training",
+    )
+    val_lengths = _normalize_lengths(
+        x_val,
+        x_val_lengths,
+        "validation",
+    )
+    test_lengths = _normalize_lengths(
+        x_test,
+        x_test_lengths,
+        "test",
+    )
+
     if x_train.ndim == 3:
-        x_train_fit = x_train.reshape(-1, x_train.shape[-1])
+        if train_lengths is None:
+            x_train_fit = x_train.reshape(-1, x_train.shape[-1])
+        else:
+            train_mask = np.arange(x_train.shape[1])[None, :] < train_lengths[:, None]
+            x_train_fit = x_train[train_mask]
     else:
         x_train_fit = x_train
 
@@ -366,16 +419,30 @@ def scale_splits(
 
     if x_train.ndim == 3:
 
-        def _scale_x_3d(x_in: np.ndarray) -> np.ndarray:
+        def _scale_x_3d(x_in: np.ndarray, lengths) -> np.ndarray:
             if x_in.shape[0] == 0:
                 return _empty_like_scaled(x_in)
-            x_2d = x_in.reshape(-1, x_in.shape[-1])
-            x_2d_scaled = x_normalizer.transform(x_2d)
-            return x_2d_scaled.reshape(x_in.shape)
 
-        x_train_scaled = _scale_x_3d(x_train)
-        x_val_scaled = _scale_x_3d(x_val)
-        x_test_scaled = _scale_x_3d(x_test)
+            if lengths is None:
+                x_2d = x_in.reshape(-1, x_in.shape[-1])
+                x_2d_scaled = x_normalizer.transform(x_2d)
+                return x_2d_scaled.reshape(x_in.shape)
+
+            valid_mask = np.arange(x_in.shape[1])[None, :] < lengths[:, None]
+            valid_values = x_in[valid_mask]
+            scaled_values = x_normalizer.transform(valid_values)
+
+            # Keep padded positions at zero in model space.
+            scaled = np.zeros(
+                x_in.shape,
+                dtype=np.asarray(scaled_values).dtype,
+            )
+            scaled[valid_mask] = scaled_values
+            return scaled
+
+        x_train_scaled = _scale_x_3d(x_train, train_lengths)
+        x_val_scaled = _scale_x_3d(x_val, val_lengths)
+        x_test_scaled = _scale_x_3d(x_test, test_lengths)
     else:
         x_train_scaled = x_normalizer.transform(x_train)
         x_val_scaled = (
@@ -412,10 +479,22 @@ def make_dataloaders(
     y_val_scaled: np.ndarray,
     batch_size: int,
     shuffle: bool,
+    train_lengths=None,
+    val_lengths=None,
 ):
-    train_dataset = TensorDataset(
-        torch.from_numpy(x_train_scaled).float(),
-        torch.from_numpy(y_train_scaled).float(),
+    def _make_dataset(x_values, y_values, lengths=None):
+        tensors = [
+            torch.from_numpy(x_values).float(),
+            torch.from_numpy(y_values).float(),
+        ]
+        if lengths is not None:
+            tensors.append(torch.from_numpy(np.asarray(lengths, dtype=np.int64)).long())
+        return TensorDataset(*tensors)
+
+    train_dataset = _make_dataset(
+        x_train_scaled,
+        y_train_scaled,
+        train_lengths,
     )
     train_dataloader = DataLoader(
         train_dataset,
@@ -425,9 +504,10 @@ def make_dataloaders(
 
     val_dataloader = None
     if x_val_scaled.shape[0] > 0:
-        val_dataset = TensorDataset(
-            torch.from_numpy(x_val_scaled).float(),
-            torch.from_numpy(y_val_scaled).float(),
+        val_dataset = _make_dataset(
+            x_val_scaled,
+            y_val_scaled,
+            val_lengths,
         )
         val_dataloader = DataLoader(
             val_dataset,
@@ -472,6 +552,7 @@ async def store_trained_model(
     history: dict[str, Any],
     x_normalizer=None,
     y_normalizer=None,
+    lengths_data=None,
 ):
     from .trainers import attach_model_store
 
@@ -479,16 +560,17 @@ async def store_trained_model(
         attach_model_store(request.app, max_items=10, ttl_seconds=3600)
 
     model_id = uuid.uuid4().hex
-    await request.app.state.model_store.set(
-        model_id,
-        {
-            "model": model,
-            "model_meta": model_meta,
-            "history": history,
-            "x_normalizer": x_normalizer,
-            "y_normalizer": y_normalizer,
-        },
-    )
+    entry = {
+        "model": model,
+        "model_meta": model_meta,
+        "history": history,
+        "x_normalizer": x_normalizer,
+        "y_normalizer": y_normalizer,
+    }
+    if lengths_data is not None:
+        entry["lengths_data"] = lengths_data
+
+    await request.app.state.model_store.set(model_id, entry)
 
     return model_id
 

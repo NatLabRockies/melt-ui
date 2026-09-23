@@ -22,6 +22,48 @@ from .training_common import (
 router = APIRouter()
 
 
+def _validate_temporal_lengths(lengths_raw, sample_count, sequence_length):
+    if lengths_raw is None:
+        return np.full(sample_count, sequence_length, dtype=np.int64)
+
+    raw = np.asarray(lengths_raw)
+    if raw.ndim != 1 or raw.shape[0] != sample_count:
+        raise ValueError("lengths must contain one value per temporal sample.")
+    if raw.dtype == np.bool_:
+        raise ValueError("lengths values must be integers.")
+
+    try:
+        numeric = raw.astype(np.float64)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("lengths values must be numeric integers.") from exc
+
+    if not np.all(np.isfinite(numeric)):
+        raise ValueError("lengths values must be finite integers.")
+    if not np.all(numeric == np.floor(numeric)):
+        raise ValueError("lengths values must be integers.")
+
+    lengths = numeric.astype(np.int64)
+    if np.any(lengths < 1) or np.any(lengths > sequence_length):
+        raise ValueError("lengths values must be between 1 and seq_length.")
+
+    return lengths
+
+
+def _split_temporal_lengths(lengths, x_train, x_val, x_test):
+    n_train = int(x_train.shape[0])
+    n_val = int(x_val.shape[0])
+    n_test = int(x_test.shape[0])
+
+    if n_train + n_val + n_test != int(lengths.shape[0]):
+        raise ValueError("Temporal length split does not match data split.")
+
+    train_lengths = lengths[:n_train]
+    val_lengths = lengths[n_train : n_train + n_val]
+    test_lengths = lengths[n_train + n_val :]
+
+    return train_lengths, val_lengths, test_lengths
+
+
 def prepare_sequences_from_raw(x_raw, y_raw, seq_length, seq_to_one):
     """
     Prepare sequences from raw 2D data using sliding window approach.
@@ -128,6 +170,17 @@ async def melt_temporal_supervised_trainer(request: Request):
     num_mixtures = int(body.get("num_mixtures", 0))
     seq_length = int(body.get("seq_length", 60))
     seq_to_one = bool(body.get("seq_to_one", True))
+
+    if not seq_to_one:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": (
+                    "seq_to_one=false is not supported by the current "
+                    "PT-MELT temporal models."
+                )
+            },
+        )
     suffix_crop = bool(body.get("suffix_crop", False))
     suffix_crop_min_length = int(body.get("suffix_crop_min_length", 32))
 
@@ -175,20 +228,10 @@ async def melt_temporal_supervised_trainer(request: Request):
     y_train = y_val = y_test = None
     x_train_scaled = x_val_scaled = x_test_scaled = None
     y_train_scaled = y_val_scaled = y_test_scaled = None
+    train_lengths = val_lengths = test_lengths = None
 
     if prepare_sequences:
         # Input is raw 2D data [samples, features] - split first, then scale, then window each split.
-        if not seq_to_one:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "error": (
-                        "For raw 2D temporal input, seq_to_one must be true in this "
-                        "version. Provide pre-windowed 3D x for other modes."
-                    )
-                },
-            )
-
         # Notebook-aligned temporal split on raw arrays.
         x_train_raw, x_val_raw, x_test_raw, y_train_raw, y_val_raw, y_test_raw = (
             split_train_val_test_temporal(
@@ -236,6 +279,9 @@ async def melt_temporal_supervised_trainer(request: Request):
             y_val=y_val_raw,
             y_test=y_test_raw,
             normalizer_type=normalizer_type,
+            x_train_lengths=train_lengths,
+            x_val_lengths=val_lengths,
+            x_test_lengths=test_lengths,
         )
 
         # Build notebook-style sequences independently per split.
@@ -257,6 +303,22 @@ async def melt_temporal_supervised_trainer(request: Request):
         )
         x_test_scaled, y_test_scaled = prepare_sequences_from_raw(
             x_test_raw_scaled, y_test_raw_scaled, seq_length, seq_to_one
+        )
+
+        train_lengths = np.full(
+            x_train_scaled.shape[0],
+            seq_length,
+            dtype=np.int64,
+        )
+        val_lengths = np.full(
+            x_val_scaled.shape[0],
+            seq_length,
+            dtype=np.int64,
+        )
+        test_lengths = np.full(
+            x_test_scaled.shape[0],
+            seq_length,
+            dtype=np.int64,
         )
 
     elif x.ndim != 3:
@@ -284,21 +346,16 @@ async def melt_temporal_supervised_trainer(request: Request):
                 },
             )
 
-        lengths_raw = body.get("lengths")
-        lengths = (
-            np.asarray(lengths_raw).reshape(-1) if lengths_raw is not None else None
-        )
-        if lengths is None:
-            lengths = np.full((x.shape[0],), int(x.shape[1]), dtype=np.int64)
-        elif lengths.shape[0] != x.shape[0]:
+        try:
+            lengths = _validate_temporal_lengths(
+                body.get("lengths"),
+                sample_count=x.shape[0],
+                sequence_length=seq_length,
+            )
+        except ValueError as exc:
             return JSONResponse(
                 status_code=400,
-                content={
-                    "error": (
-                        "lengths must have one value per sample. "
-                        f"Got lengths={lengths.shape[0]} for samples={x.shape[0]}"
-                    )
-                },
+                content={"error": str(exc)},
             )
 
         x_train, x_val, x_test, y_train, y_val, y_test = split_train_val_test_temporal(
@@ -306,6 +363,13 @@ async def melt_temporal_supervised_trainer(request: Request):
             y=y,
             val_size=val_size,
             test_size=test_size,
+        )
+
+        train_lengths, val_lengths, test_lengths = _split_temporal_lengths(
+            lengths,
+            x_train,
+            x_val,
+            x_test,
         )
 
         # Pre-windowed sequences can overlap across split boundaries.
@@ -324,8 +388,11 @@ async def melt_temporal_supervised_trainer(request: Request):
                 )
             x_val = x_val[boundary_gap:]
             y_val = y_val[boundary_gap:]
+            val_lengths = val_lengths[boundary_gap:]
+
             x_test = x_test[boundary_gap:]
             y_test = y_test[boundary_gap:]
+            test_lengths = test_lengths[boundary_gap:]
 
         (
             x_train_scaled,
@@ -344,6 +411,20 @@ async def melt_temporal_supervised_trainer(request: Request):
             y_val=y_val,
             y_test=y_test,
             normalizer_type=normalizer_type,
+            x_train_lengths=train_lengths,
+            x_val_lengths=val_lengths,
+            x_test_lengths=test_lengths,
+        )
+
+    if suffix_crop and np.any(train_lengths < suffix_crop_min_length):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": (
+                    "suffix_crop_min_length cannot exceed any training "
+                    "sequence length."
+                )
+            },
         )
 
     run_id = register_training_run(request.app, requested_run_id)
@@ -355,6 +436,8 @@ async def melt_temporal_supervised_trainer(request: Request):
         y_val_scaled=y_val_scaled,
         batch_size=batch_size,
         shuffle=shuffle,
+        train_lengths=train_lengths,
+        val_lengths=val_lengths,
     )
     should_cancel = lambda: is_training_cancelled(request.app, run_id)
     train_dataloader = make_cancellable_dataloader(
@@ -455,13 +538,19 @@ async def melt_temporal_supervised_trainer(request: Request):
         else "prewindowed_split_then_scale"
     )
 
+    model_meta["has_lengths"] = True
+    model_meta["variable_lengths"] = bool(
+        np.any(train_lengths != seq_length)
+        or np.any(val_lengths != seq_length)
+        or np.any(test_lengths != seq_length)
+    )
+    model_meta["lengths_note"] = (
+        "Sequence lengths are carried through scaling and batching; "
+        "padded timesteps are excluded from feature normalization."
+    )
+
     if not prepare_sequences:
         model_meta["prewindow_overlap_trim"] = max(0, seq_length - 1)
-        model_meta["has_lengths"] = True
-        model_meta["lengths_note"] = (
-            "Length-aware batching is not enabled yet; lengths were accepted but not "
-            "used in this training run."
-        )
 
     model_id = await store_trained_model(
         request=request,
@@ -470,6 +559,7 @@ async def melt_temporal_supervised_trainer(request: Request):
         history=history,
         x_normalizer=x_normalizer,
         y_normalizer=y_normalizer,
+        lengths_data=(train_lengths, val_lengths, test_lengths),
     )
 
     x_data = (x_train, x_val, x_test)
@@ -560,6 +650,17 @@ async def melt_temporal_transformer_trainer(request: Request):
     seq_length = int(body.get("seq_length", 60))
     seq_to_one = bool(body.get("seq_to_one", True))
 
+    if not seq_to_one:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": (
+                    "seq_to_one=false is not supported by the current "
+                    "PT-MELT temporal models."
+                )
+            },
+        )
+
     if seq_length < 1:
         return JSONResponse(
             status_code=400,
@@ -623,19 +724,9 @@ async def melt_temporal_transformer_trainer(request: Request):
     y_train = y_val = y_test = None
     x_train_scaled = x_val_scaled = x_test_scaled = None
     y_train_scaled = y_val_scaled = y_test_scaled = None
+    train_lengths = val_lengths = test_lengths = None
 
     if prepare_sequences:
-        if not seq_to_one:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "error": (
-                        "For raw 2D temporal input, seq_to_one must be true in this "
-                        "version. Provide pre-windowed 3D x for other modes."
-                    )
-                },
-            )
-
         x_train_raw, x_val_raw, x_test_raw, y_train_raw, y_val_raw, y_test_raw = (
             split_train_val_test_temporal(
                 x=x,
@@ -680,6 +771,9 @@ async def melt_temporal_transformer_trainer(request: Request):
             y_val=y_val_raw,
             y_test=y_test_raw,
             normalizer_type=normalizer_type,
+            x_train_lengths=train_lengths,
+            x_val_lengths=val_lengths,
+            x_test_lengths=test_lengths,
         )
 
         x_train, y_train = prepare_sequences_from_raw(
@@ -702,6 +796,22 @@ async def melt_temporal_transformer_trainer(request: Request):
             x_test_raw_scaled, y_test_raw_scaled, seq_length, seq_to_one
         )
 
+        train_lengths = np.full(
+            x_train_scaled.shape[0],
+            seq_length,
+            dtype=np.int64,
+        )
+        val_lengths = np.full(
+            x_val_scaled.shape[0],
+            seq_length,
+            dtype=np.int64,
+        )
+        test_lengths = np.full(
+            x_test_scaled.shape[0],
+            seq_length,
+            dtype=np.int64,
+        )
+
     elif x.ndim != 3:
         return JSONResponse(
             status_code=400,
@@ -715,21 +825,16 @@ async def melt_temporal_transformer_trainer(request: Request):
         )
 
     else:
-        lengths_raw = body.get("lengths")
-        lengths = (
-            np.asarray(lengths_raw).reshape(-1) if lengths_raw is not None else None
-        )
-        if lengths is None:
-            lengths = np.full((x.shape[0],), int(x.shape[1]), dtype=np.int64)
-        elif lengths.shape[0] != x.shape[0]:
+        try:
+            lengths = _validate_temporal_lengths(
+                body.get("lengths"),
+                sample_count=x.shape[0],
+                sequence_length=seq_length,
+            )
+        except ValueError as exc:
             return JSONResponse(
                 status_code=400,
-                content={
-                    "error": (
-                        "lengths must have one value per sample. "
-                        f"Got lengths={lengths.shape[0]} for samples={x.shape[0]}"
-                    )
-                },
+                content={"error": str(exc)},
             )
 
         if x.shape[1] != seq_length:
@@ -750,6 +855,13 @@ async def melt_temporal_transformer_trainer(request: Request):
             test_size=test_size,
         )
 
+        train_lengths, val_lengths, test_lengths = _split_temporal_lengths(
+            lengths,
+            x_train,
+            x_val,
+            x_test,
+        )
+
         boundary_gap = max(0, seq_length - 1)
         if boundary_gap > 0:
             if x_val.shape[0] <= boundary_gap or x_test.shape[0] <= boundary_gap:
@@ -764,8 +876,11 @@ async def melt_temporal_transformer_trainer(request: Request):
                 )
             x_val = x_val[boundary_gap:]
             y_val = y_val[boundary_gap:]
+            val_lengths = val_lengths[boundary_gap:]
+
             x_test = x_test[boundary_gap:]
             y_test = y_test[boundary_gap:]
+            test_lengths = test_lengths[boundary_gap:]
 
         (
             x_train_scaled,
@@ -784,6 +899,9 @@ async def melt_temporal_transformer_trainer(request: Request):
             y_val=y_val,
             y_test=y_test,
             normalizer_type=normalizer_type,
+            x_train_lengths=train_lengths,
+            x_val_lengths=val_lengths,
+            x_test_lengths=test_lengths,
         )
 
     run_id = register_training_run(request.app, requested_run_id)
@@ -795,6 +913,8 @@ async def melt_temporal_transformer_trainer(request: Request):
         y_val_scaled=y_val_scaled,
         batch_size=batch_size,
         shuffle=shuffle,
+        train_lengths=train_lengths,
+        val_lengths=val_lengths,
     )
     should_cancel = lambda: is_training_cancelled(request.app, run_id)
     train_dataloader = make_cancellable_dataloader(
@@ -897,13 +1017,19 @@ async def melt_temporal_transformer_trainer(request: Request):
         else "prewindowed_split_then_scale"
     )
 
+    model_meta["has_lengths"] = True
+    model_meta["variable_lengths"] = bool(
+        np.any(train_lengths != seq_length)
+        or np.any(val_lengths != seq_length)
+        or np.any(test_lengths != seq_length)
+    )
+    model_meta["lengths_note"] = (
+        "Sequence lengths are carried through scaling and batching; "
+        "padded timesteps are excluded from feature normalization."
+    )
+
     if not prepare_sequences:
         model_meta["prewindow_overlap_trim"] = max(0, seq_length - 1)
-        model_meta["has_lengths"] = True
-        model_meta["lengths_note"] = (
-            "Length-aware batching is not enabled yet; lengths were accepted but not "
-            "used in this training run."
-        )
 
     model_id = await store_trained_model(
         request=request,
@@ -912,6 +1038,7 @@ async def melt_temporal_transformer_trainer(request: Request):
         history=history,
         x_normalizer=x_normalizer,
         y_normalizer=y_normalizer,
+        lengths_data=(train_lengths, val_lengths, test_lengths),
     )
 
     x_data = (x_train, x_val, x_test)
