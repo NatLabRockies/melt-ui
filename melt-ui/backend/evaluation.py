@@ -1,5 +1,6 @@
 import inspect
 import json
+import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,6 +12,7 @@ from ptmelt.utils.visualization import (
     point_cloud_plot,
     point_cloud_plot_with_uncertainty,
 )
+from sklearn.preprocessing import MinMaxScaler, RobustScaler, StandardScaler
 
 from .utils import convert_fig_to_image, scaler_from_dict
 
@@ -267,20 +269,39 @@ def _inverse_y_preserve_shape(values: np.ndarray, y_normalizer):
 
 
 def _inverse_std_preserve_shape(std_values: np.ndarray, y_normalizer):
+    """Inverse-transform uncertainty for supported affine normalizers."""
     if y_normalizer is None:
         return std_values
+
     std_arr = np.asarray(std_values)
     if not _split_has_samples(std_arr):
         return std_arr
-    zeros = np.zeros_like(std_arr)
-    try:
-        inv_std = np.abs(
-            _inverse_y_preserve_shape(std_arr, y_normalizer)
-            - _inverse_y_preserve_shape(zeros, y_normalizer)
-        )
-        return inv_std
-    except Exception:
+
+    if type(y_normalizer).__name__ in {
+        "IdentityScaler",
+        "_WireIdentityScaler",
+    }:
         return std_arr
+
+    if isinstance(y_normalizer, MinMaxScaler):
+        scale = getattr(y_normalizer, "scale_", None)
+        if scale is None:
+            return std_arr
+        return std_arr / np.asarray(scale, dtype=np.float64)
+
+    if isinstance(y_normalizer, (StandardScaler, RobustScaler)):
+        scale = getattr(y_normalizer, "scale_", None)
+        if scale is None:
+            return std_arr
+        return std_arr * np.asarray(scale, dtype=np.float64)
+
+    warnings.warn(
+        "Cannot exactly inverse-transform standard deviations for "
+        f"{type(y_normalizer).__name__}; standard deviations will remain "
+        "in normalized space.",
+        stacklevel=2,
+    )
+    return std_arr
 
 
 @router.post("/evaluate_supervised_model")
